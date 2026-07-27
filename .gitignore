@@ -22,3 +22,35 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# ==========================================
+# safEYE 모노레포 통합 .gitignore
+# ==========================================
+
+# --- AI & VLM Server (대용량 모델 방어선) ---
+vlm-workspace/scripts/chromadb_store/
+vlm-workspace/models/
+*.gguf
+*.bin
+*.pt
+*.safetensors
+*.onnx
+__pycache__/
+*.pyc
+
+# --- Backend (Spring Boot) ---
+backend/build/
+backend/.gradle/
+backend/out/
+backend/bin/
+
+# --- Frontend (React) ---
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# --- Environment & System ---
+.env
+.DS_Store
+.idea/
+.vscode/
