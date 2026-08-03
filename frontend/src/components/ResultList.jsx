@@ -1,5 +1,3 @@
-//mockData: 가짜 데이터 (이후 실제 조회 API 응답으로 교체)
-//mockData.map((item) => ...): 배열안의 항목 각각을 화면 요소로 변환 (결과마다 카드 하나씩)
 //key={item.id}:React가 각 항목을 구분하기 위해 필요한 고유값 (없으면 에러)
 //item.is_danger ? "위험" : "안전": 삼항 연산자로, item.is_danger가 true면 위험, false면 안전
 
@@ -20,7 +18,9 @@ function ResultList() {
     // 실행할 함수 fetchResults, 빈 배열: 화면이 처음 나타날 때 한 번만 실행하도록
     const fetchResults = async () => {
       try {
-        const response = await fetch("http://localhost:8080/api/results");
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/results`,
+        );
         const data = await response.json();
         setResults(data);
       } catch (err) {
