@@ -3,26 +3,64 @@
 //key={item.id}:React가 각 항목을 구분하기 위해 필요한 고유값 (없으면 에러)
 //item.is_danger ? "위험" : "안전": 삼항 연산자로, item.is_danger가 true면 위험, false면 안전
 
-const mockData = [
-    {id: 1, is_danger: true, severity: "high", vlm_description: "안전모 미착용 감지", violated_regulation: "제5조"},
-    {id: 2, is_danger: false, severity: "low", vlm_description: "이상 없음", violated_regulation: null},
+import { useState, useEffect } from "react";
 
-];
+// const mockData = [
+//     {id: 1, is_danger: true, severity: "high", vlm_description: "안전모 미착용 감지", violated_regulation: "제5조"},
+//     {id: 2, is_danger: false, severity: "low", vlm_description: "이상 없음", violated_regulation: null},
+
+// ];
 
 function ResultList() {
-    return (
-        <div>
-            <h2>판단 결과 목록</h2>
-            {mockData.map((item) => (
-                <div key={item.id} style={{ border: "1px solid gray", padding: "8px", marginBottom: "8px"}}>
-                    <p>위험 여부: {item.is_danger ? "위험" : "안전"}</p>
-                    <p>심각도: {item.severity}</p>
-                    <p>설명: {item.vlm_description}</p>
-                    <p>위반 규정: {item.violated_regulation || "없음"}</p>
-                </div>
-            ))}
-        </div>
-    );
+  const [result, setResults] = useState([]); // 서버에서 받은 데이터
+  const [loading, setLoading] = useState(true); // 데이터를 불러오는 중 확인
+  const [error, setError] = useState(null); // 에러 여부
+
+  useEffect(() => {
+    // 실행할 함수 fetchResults, 빈 배열: 화면이 처음 나타날 때 한 번만 실행하도록
+    const fetchResults = async () => {
+      try {
+        const response = await fetch("http://localhost:8080/api/results");
+        const data = await response.json();
+        setResults(data);
+      } catch (err) {
+        setError("결과를 불러오지 못 했습니다.");
+        console.error(err);
+      } finally {
+        setLoading(false); // 로딩 끝
+      }
+    };
+
+    fetchResults();
+  }, []);
+
+  if (loading) return <p>불러오는 중...</p>;
+  if (error) return <p>{error}</p>;
+
+  return (
+    <div>
+      <h2>판단 결과 목록</h2>
+      {results.length === 0 ? (
+        <p>아직 결과가 없습니다.</p>
+      ) : (
+        result.map((item) => (
+          <div
+            key={item.id}
+            style={{
+              border: "1px solid gray",
+              padding: "8px",
+              marginBottom: "8px",
+            }}
+          >
+            <p>위험 여부: {item.is_danger ? "위험" : "안전"}</p>
+            <p>심각도: {item.severity}</p>
+            <p>설명: {item.vlm_description}</p>
+            <p>위반 규정: {item.violated_regulation || "없음"}</p>
+          </div>
+        ))
+      )}
+    </div>
+  );
 }
 
 export default ResultList;
