@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import PhotoUploadForm from "./components/PhotoUploadForm";
+import VideoUploadForm from "./components/VideoUploadForm";
 import ResultList from "./components/ResultList";
 import StatsSummary from "./components/StatsSummary";
 import Sidebar from "./components/Sidebar";
@@ -19,6 +20,7 @@ function App() {
             <ResultList />
           </>
         )}
+        {currentPage === "video-upload" && <VideoUploadForm />}
         {currentPage === "stats" && <StatsSummary />}
       </div>
     </div>

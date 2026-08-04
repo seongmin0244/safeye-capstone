@@ -1,6 +1,7 @@
 function Sidebar({ currentPage, onNavigate }) {
   const menuItems = [
     { key: "photo-upload", label: "사진 업로드" },
+    { key: "video-upload", label: "영상 업로드" },
     { key: "stats", label: "통계 리포트" },
   ];
 
