@@ -20,6 +20,7 @@ import { useState } from "react";
 
 function UploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); // "success" | "error" | null
 
@@ -27,6 +28,13 @@ function UploadForm() {
     const file = e.target.files[0];
     setSelectedFile(file);
     setUploadStatus(null);
+
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    } else {
+      setPreviewUrl(null);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -66,6 +74,16 @@ function UploadForm() {
       <h2>이미지 업로드</h2>
       <input type="file" accept="image/*" onChange={handleFileChange} />
       {selectedFile && <p>선택된 파일: {selectedFile.name}</p>}
+
+      {previewUrl && (
+        <div style={{ margin: "8px 0" }}>
+          <img
+            src={previewUrl}
+            alt="미리보기"
+            style={{ maxWidth: "300px", maxHeight: "300px", display: "block" }}
+          />
+        </div>
+      )}
 
       <button type="submit" disabled={uploading}>
         {uploading ? "업로드 중..." : "제출"}
