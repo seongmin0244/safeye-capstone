@@ -19,7 +19,7 @@
 
 import { useState } from "react";
 
-function UploadForm() {
+function PhotoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null); // 선택한 파일
   const [previewUrl, setPreviewUrl] = useState(null); // 미리보기 이미지
   const [uploading, setUploading] = useState(false); // 로딩 중인지
@@ -100,4 +100,4 @@ function UploadForm() {
   );
 }
 
-export default UploadForm;
+export default PhotoUploadForm;
