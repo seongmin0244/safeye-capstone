@@ -15,13 +15,14 @@
 // onChange={handleFileChange}: input 태그에 값이 바뀌면 handleFileChange 실행
 // {selectedFile && <p> ...}: selectedFile이 있다면 뒤의 문장을 실행시킴
 // export default ... : 다른 파일에서 해당 컴포넌트를 가져다 쓸 수 있도록 해줌
+// URL.createObjectURL(file): 아직 서버에 없는 내 컴퓨터의 파일을 브라우저가 임시로 접근할 수 있는 가짜 주소로 만들어주는 함수
 
 import { useState } from "react";
 
 function UploadForm() {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null); // 선택한 파일
+  const [previewUrl, setPreviewUrl] = useState(null); // 미리보기 이미지
+  const [uploading, setUploading] = useState(false); // 로딩 중인지
   const [uploadStatus, setUploadStatus] = useState(null); // "success" | "error" | null
 
   const handleFileChange = (e) => {
