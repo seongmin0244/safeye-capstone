@@ -54,3 +54,19 @@ frontend/build/
 .DS_Store
 .idea/
 .vscode/
+
+# Python virtual environment
+.venv/
+venv/
+**/.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local RAG database
+vlm-workspace/data/rag/chroma_db/
+
+# Runtime generated files
+vlm-workspace/data/frames/
+vlm-workspace/data/outputs/

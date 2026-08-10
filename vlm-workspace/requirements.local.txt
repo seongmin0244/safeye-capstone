@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+ollama
+opencv-python
+pydantic>=2
+
+# RAG
+chromadb==1.5.9
+sentence-transformers
