@@ -1,0 +1,7 @@
+# 로컬 VLM 노드, 목 서버, 벤치마크 스크립트가 쓰는 의존성
+fastapi>=0.115
+uvicorn[standard]>=0.32
+httpx>=0.27
+pydantic>=2.9
+pillow>=10.4
+python-multipart>=0.0.12
