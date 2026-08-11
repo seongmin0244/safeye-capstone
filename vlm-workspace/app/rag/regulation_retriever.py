@@ -11,10 +11,14 @@ BASE_DIR = (
     .resolve()
     .parent
     .parent
+    .parent
 )
 
 CHROMA_PATH = (
-    BASE_DIR / "chroma_db"
+    BASE_DIR
+    / "data"
+    / "rag"
+    / "chroma_db"
 )
 
 EMBEDDING_MODEL = (

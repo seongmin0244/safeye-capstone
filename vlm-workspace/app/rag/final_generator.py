@@ -1,13 +1,20 @@
+from pathlib import Path
+
 from ollama import chat
 
-from src.config import PROMPTS_DIR, VLM_MODEL
-from src.schemas import (
+from .config import PROMPTS_DIR, VLM_MODEL
+from .schemas import (
     AggregatedHazard,
     GeneratedAssessment,
     RegulationResult,
 )
-# TODO: 기존 VLM 프로젝트의 app.schemas와 통합 필요
-# 현재 RAG 프로토타입의 schema 기준으로 작성된 코드
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+PROMPTS_DIR = BASE_DIR / "prompts"
+
+# TODO[RAG-VLM]: 기존 app/local 설정과 통합 예정
+VLM_MODEL = "qwen2.5vl:7b"
 
 
 

@@ -5,26 +5,30 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 
 
-# ==========================================
-# 경로 설정
-# ==========================================
+# vlm-workspace/
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-BASE_DIR = Path(__file__).resolve().parent
+CHROMA_PATH = (
+    BASE_DIR
+    / "data"
+    / "rag"
+    / "chroma_db"
+)
 
 JSONL_PATH = (
     BASE_DIR
     / "data"
+    / "rag"
     / "parsed"
     / "regulations.jsonl"
 )
 
-CHROMA_PATH = BASE_DIR / "chroma_db"
+
 
 EMBEDDING_MODEL = (
     "sentence-transformers/"
     "paraphrase-multilingual-MiniLM-L12-v2"
 )
-
 
 # ==========================================
 # document_type -> collection 이름

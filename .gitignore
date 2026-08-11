@@ -70,3 +70,12 @@ vlm-workspace/data/rag/chroma_db/
 # Runtime generated files
 vlm-workspace/data/frames/
 vlm-workspace/data/outputs/
+
+# ChromaDB
+data/rag/chroma_db/
+app/chroma_db/
+app/data/rag/chroma_db/
+
+# 실행 중 생성 파일
+data/frames/
+data/outputs/
