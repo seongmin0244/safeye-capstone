@@ -1,23 +1,19 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Sidebar from "./components/layout/Sidebar";
 import DashboardPage from "./pages/DashboardPage";
 import AnalyzeImagePage from "./pages/AnalyzeImagePage";
 import AnalyzeVideoPage from "./pages/AnalyzeVideoPage";
+import AppLayout from "./components/layout/AppLayout";
 
 function App() {
   return (
     <BrowserRouter>
-      <div style={{ display: "flex" }}>
-        <Sidebar />
-        <div style={{ flex: 1, padding: "24px" }}>
-          <h1>safEYE 안전 관제 대시보드</h1>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/analyze/image" element={<AnalyzeImagePage />} />
-            <Route path="/analyze/video" element={<AnalyzeVideoPage />} />
-          </Routes>
-        </div>
-      </div>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/analyze/image" element={<AnalyzeImagePage />} />
+          <Route path="/analyze/video" element={<AnalyzeVideoPage />} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }
