@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5435/safeye_test
+    username: user
+    password: pass
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # 테스트 코드가 실행될 때마다 테이블을 새로 만들고, 테스트가 끝나면 싹 지워버림(초기화)
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: trace # 쿼리에 들어가는 파라미터(?, ?)에 실제 어떤 값이 꽂히는지 보여줌
