@@ -1,7 +1,7 @@
 """VLM 분석 결과가 오가는 공통 스키마.
 
 `VLMInternal`: 모델과 내부 백엔드 사이에서 쓰는 자세한 결과,
-`VLMResponse`: 백엔드/Spring 쪽에 넘기는 4개 필드짜리 응답
+`VLMResponse`: 백엔드/Spring 쪽에 넘기는 응답
 """
 
 from typing import Literal
@@ -47,6 +47,7 @@ class VLMInternal(BaseModel):
 class VLMResponse(BaseModel):
     is_danger: bool
     severity: Severity
+    action_guide: str
     vlm_description: str
     violated_regulation: str
 

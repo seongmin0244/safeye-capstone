@@ -114,7 +114,7 @@ async def analyze(
     scenario: str | None = Form(None),
     delay: float | None = Form(None),
 ):
-    """Spring/백엔드가 바로 붙는 4개 필드 응답 계약."""
+    """Spring/백엔드가 바로 붙는 응답 계약."""
     raw = await _read_image(image)
     await _maybe_fail(mock_mode)
     await _sleep(delay)
@@ -149,7 +149,7 @@ async def index():
         "service": "safety-vlm-mock",
         "note": "경량화 모델 준비 전까지 쓰는 임시 서버입니다.",
         "endpoints": {
-            "POST /v1/analyze": "Spring용 4개 필드 응답",
+            "POST /v1/analyze": "Spring용 응답",
             "POST /v1/analyze_internal": "게이트웨이용 VLMInternal 응답",
             "GET /v1/scenarios": "목 응답 시나리오 목록",
             "GET /health": "상태 확인",
@@ -197,6 +197,7 @@ async def scenarios():
         out[key] = {
             "is_danger": response.is_danger,
             "severity": response.severity,
+            "action_guide": response.action_guide,
             "violated_regulation": response.violated_regulation,
             "vlm_description": response.vlm_description,
         }

@@ -19,12 +19,13 @@ def verify(internal: VLMInternal) -> tuple[VLMInternal, list[str]]:
 
 
 def to_response(internal: VLMInternal) -> VLMResponse:
-    """내부 스키마를 Spring 쪽에서 쓰는 4개 필드 응답으로 접는다."""
+    """내부 스키마를 Spring 쪽에서 쓰는 응답으로 접는다."""
     desc = internal.reasoning.strip()
+    action_guide = " / ".join(
+        f"{i}. {action}" for i, action in enumerate(internal.recommended_actions, 1)
+    )
     if internal.recommended_actions:
-        desc += " 조치: " + " / ".join(
-            f"{i}. {action}" for i, action in enumerate(internal.recommended_actions, 1)
-        )
+        desc += f" 조치: {action_guide}"
     if internal.uncertain:
         desc += f" (확인 필요: {', '.join(internal.uncertain)})"
 
@@ -33,6 +34,7 @@ def to_response(internal: VLMInternal) -> VLMResponse:
     return VLMResponse(
         is_danger=internal.hazard_detected,
         severity=internal.severity,
+        action_guide=action_guide or "추가 조치 없음",
         vlm_description=desc or "분석 결과를 생성하지 못했습니다.",
         violated_regulation=regulation,
     )
