@@ -3,7 +3,7 @@
 @theme {
   --color-accent: oklch(0.52 0.13 265);
 
-  --color-danger: oklch(0.55 0.19 25);
+  --color-danger: oklch(0.45 0.18 25);
   --color-danger-bg: oklch(0.94 0.04 25);
 
   --color-warn: oklch(0.55 0.15 70);
