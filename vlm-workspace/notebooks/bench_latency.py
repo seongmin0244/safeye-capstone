@@ -1,13 +1,13 @@
-"""모델과 입력 해상도별 지연시간을 비교함.
+"""모델과 입력 해상도별 지연시간을 비교한다.
 
-이 스크립트는 얼마나 빠른가만 봄. 실제로 어떤 모델을 쓸지는
-`eval_accuracy.py`의 miss/false alarm 결과와 함께 판단 필요.
+이 스크립트는 "얼마나 빠른가"만 본다. 실제로 어떤 모델을 쓸지는
+`eval_accuracy.py`의 miss/false alarm 결과와 함께 판단해야 한다.
 
 예시:
-    python scripts/bench_latency.py --images ./samples --n 5
-    python scripts/bench_latency.py --images ./samples --n 10 \
+    python notebooks/bench_latency.py --images ./samples --n 5
+    python notebooks/bench_latency.py --images ./samples --n 10 \
         --models qwen3-vl:8b-q4_K_M,qwen3-vl:8b-q8_0 --edges 672,1024 --out bench.csv
-    python scripts/bench_latency.py --images ./samples --n 5 --via-api http://100.x.y.z:8100
+    python notebooks/bench_latency.py --images ./samples --n 5 --via-api http://100.x.y.z:8100
 """
 
 from __future__ import annotations
@@ -69,26 +69,31 @@ async def run_direct(client: OllamaClient, model: str, img: bytes, prompt: str) 
         }
 
 
-async def run_via_api(base: str, img: bytes, prompt: str, key: str = "") -> dict:
+async def run_via_api(
+    client: httpx.AsyncClient,
+    base: str,
+    img: bytes,
+    prompt: str,
+    key: str = "",
+) -> dict:
     t0 = time.perf_counter()
     headers = {"X-Local-Key": key} if key else {}
     try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            response = await client.post(
-                f"{base.rstrip('/')}/v1/analyze_internal",
-                files={"image": ("img.jpg", img, "image/jpeg")},
-                data={"prompt": prompt},
-                headers=headers,
-            )
-            wall = (time.perf_counter() - t0) * 1000
-            ok = response.status_code == 200
-            return {
-                "ok": ok,
-                "schema_valid": ok,
-                "wall_ms": wall,
-                "status": response.status_code,
-                "error": "" if ok else response.text[:120],
-            }
+        response = await client.post(
+            f"{base.rstrip('/')}/v1/analyze_internal",
+            files={"image": ("img.jpg", img, "image/jpeg")},
+            data={"prompt": prompt},
+            headers=headers,
+        )
+        wall = (time.perf_counter() - t0) * 1000
+        ok = response.status_code == 200
+        return {
+            "ok": ok,
+            "schema_valid": ok,
+            "wall_ms": wall,
+            "status": response.status_code,
+            "error": "" if ok else response.text[:120],
+        }
     except Exception as e:
         return {
             "ok": False,
@@ -113,74 +118,79 @@ async def bench(args) -> list[dict]:
         num_predict=cfg.num_predict,
         temperature=cfg.temperature,
     )
+    api_client = httpx.AsyncClient(timeout=180) if args.via_api else None
 
-    rows: list[dict] = []
-    for model in models:
-        if not args.via_api:
-            print(f"\n=== loading {model} ===", flush=True)
-            try:
-                load_ms = await client.warmup(model)
-                vram = await client.loaded_vram_mb(model)
-                print(f"    load={load_ms:.0f}ms  vram={vram:.0f}MB")
-            except Exception as e:
-                print(f"    !! warmup failed; skipping: {e}")
-                continue
+    try:
+        rows: list[dict] = []
+        for model in models:
+            if not args.via_api:
+                print(f"\n=== loading {model} ===", flush=True)
+                try:
+                    load_ms = await client.warmup(model)
+                    vram = await client.loaded_vram_mb(model)
+                    print(f"    load={load_ms:.0f}ms  vram={vram:.0f}MB")
+                except Exception as e:
+                    print(f"    !! warmup failed; skipping: {e}")
+                    continue
 
-        for edge in edges:
-            samples: list[dict] = []
-            for _ in range(args.repeat):
-                for name, raw in images:
-                    img = to_edge(raw, edge)
-                    if args.via_api:
-                        result = await run_via_api(args.via_api, img, prompt, args.key)
-                    else:
-                        result = await run_direct(client, model, img, prompt)
-                    result["image"] = name
-                    result["px"] = "x".join(map(str, dims(img)))
-                    samples.append(result)
+            for edge in edges:
+                samples: list[dict] = []
+                for _ in range(args.repeat):
+                    for name, raw in images:
+                        img = to_edge(raw, edge)
+                        if args.via_api:
+                            result = await run_via_api(api_client, args.via_api, img, prompt, args.key)
+                        else:
+                            result = await run_direct(client, model, img, prompt)
+                        result["image"] = name
+                        result["px"] = "x".join(map(str, dims(img)))
+                        samples.append(result)
 
-                    flag = "ok " if result["ok"] else "FAIL"
-                    print(
-                        f"  [{model:28s} e={edge:4d}] {name:24s} {flag} "
-                        f"{result['wall_ms']:7.0f}ms"
-                        + ("" if result["ok"] else f"  {result.get('error', '')[:70]}")
-                    )
+                        flag = "ok " if result["ok"] else "FAIL"
+                        print(
+                            f"  [{model:28s} e={edge:4d}] {name:24s} {flag} "
+                            f"{result['wall_ms']:7.0f}ms"
+                            + ("" if result["ok"] else f"  {result.get('error', '')[:70]}")
+                        )
 
-            good = [s for s in samples if s["ok"]]
-            walls = [s["wall_ms"] for s in good]
-            row = {
-                "model": model,
-                "edge": edge,
-                "n": len(samples),
-                "ok": len(good),
-                "json_ok_rate": round(
-                    sum(s["schema_valid"] for s in samples) / len(samples), 3
-                ),
-                "p50_ms": round(statistics.median(walls), 0) if walls else None,
-                "p95_ms": round(pct(walls, 0.95), 0) if walls else None,
-                "max_ms": round(max(walls), 0) if walls else None,
-            }
-            if good and not args.via_api:
-                row |= {
-                    "prefill_ms": round(statistics.median(
-                        [s["prompt_eval_ms"] for s in good]), 0),
-                    "decode_ms": round(statistics.median(
-                        [s["eval_ms"] for s in good]), 0),
-                    "decode_tps": round(statistics.median(
-                        [s["decode_tps"] for s in good]), 1),
-                    "vis_tokens": int(statistics.median(
-                        [s["prompt_tokens"] for s in good])),
-                    "vram_mb": await client.loaded_vram_mb(model),
+                good = [s for s in samples if s["ok"]]
+                walls = [s["wall_ms"] for s in good]
+                row = {
+                    "model": model,
+                    "edge": edge,
+                    "n": len(samples),
+                    "ok": len(good),
+                    "json_ok_rate": round(
+                        sum(s["schema_valid"] for s in samples) / len(samples), 3
+                    ),
+                    "p50_ms": round(statistics.median(walls), 0) if walls else None,
+                    "p95_ms": round(pct(walls, 0.95), 0) if walls else None,
+                    "max_ms": round(max(walls), 0) if walls else None,
                 }
-            rows.append(row)
-            print(
-                f"  summary {model} edge={edge}: "
-                f"p50={row['p50_ms']}ms p95={row['p95_ms']}ms json_ok={row['json_ok_rate']}"
-            )
+                if good and not args.via_api:
+                    row |= {
+                        "prefill_ms": round(statistics.median(
+                            [s["prompt_eval_ms"] for s in good]), 0),
+                        "decode_ms": round(statistics.median(
+                            [s["eval_ms"] for s in good]), 0),
+                        "decode_tps": round(statistics.median(
+                            [s["decode_tps"] for s in good]), 1),
+                        "vis_tokens": int(statistics.median(
+                            [s["prompt_tokens"] for s in good])),
+                        "vram_mb": await client.loaded_vram_mb(model),
+                    }
+                rows.append(row)
+                print(
+                    f"  summary {model} edge={edge}: "
+                    f"p50={row['p50_ms']}ms p95={row['p95_ms']}ms json_ok={row['json_ok_rate']}"
+                )
 
-        if not args.via_api and not args.keep_loaded:
-            await client.unload(model)
-    return rows
+            if not args.via_api and not args.keep_loaded:
+                await client.unload(model)
+        return rows
+    finally:
+        if api_client:
+            await api_client.aclose()
 
 
 def to_markdown(rows: list[dict]) -> str:
