@@ -1,0 +1,22 @@
+# Render에 올리는 목 서버 이미지.
+# 실제 모델/Ollama는 넣지 않고 FastAPI와 fixture만 담는다.
+
+FROM python:3.11-slim
+
+WORKDIR /srv
+
+COPY requirements.mock.txt .
+RUN pip install --no-cache-dir -r requirements.mock.txt
+
+COPY app ./app
+COPY scripts ./scripts
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    MOCK_LATENCY_MIN=1 \
+    MOCK_LATENCY_MAX=3 \
+    PORT=8100
+
+EXPOSE 8100
+
+CMD ["sh", "-c", "uvicorn app.mock_server:app --host 0.0.0.0 --port ${PORT}"]
