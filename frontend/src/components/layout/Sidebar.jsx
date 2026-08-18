@@ -78,7 +78,3 @@ function Sidebar({ isOpen }) {
 }
 
 export default Sidebar;
-
-//NavLink: 지금 이 링크가 현재 화면인지 자동으로 알려주는 라우터 전용 컴포넌트
-//style={({ isActive }) => ({...})}:
-// isActive는 "지금 메뉴가 선택된 상태인지"를 라우터가 자동으로 계산해서 넘겨줌

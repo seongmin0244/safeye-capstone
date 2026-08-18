@@ -19,8 +19,3 @@ function App() {
 }
 
 export default App;
-
-//<BrowserRouter>: 이 안에서는 주소(URL) 기반으로 화면이 바뀐다고 선언하는 태그
-//<Routes>: <Route> 중, 지금 주소랑 맞는 것 딱 하나만 골라서 보여주는 상자
-//<Route path="/analyze/image" element={<AnalyzeImagePage />} />:
-// 주소가 /analyze/image이면 AnalyzeImagePage를 보여줌
