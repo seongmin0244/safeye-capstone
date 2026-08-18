@@ -4,28 +4,23 @@ import { MENU_GROUPS } from "../../constants/menu";
 function Sidebar({ isOpen }) {
   return (
     <div
-      style={{
-        width: isOpen ? "200px" : "64px",
-        borderRight: "1px solid #eee",
-        padding: "16px",
-        minHeight: "100vh",
-        transition: "width 0.2s ease",
-        overflow: "hidden",
-      }}
+      className={`flex flex-col bg-sidebar h-screen p-4 transition-[width] duration-200 overflow-hidden ${
+        isOpen ? "w-[260px]" : "w-16"
+      }`}
     >
-      <h3 style={{ marginBottom: "20px" }}>{isOpen ? "Safeye" : "SE"}</h3>
+      <div className="flex items-center gap-2.5 px-3 pt-2 pb-7">
+        <div className="w-8 h-8 rounded-lg bg-accent shrink-0" />
+        {isOpen && (
+          <div className="text-white font-bold text-[17px] tracking-tight">
+            SAFEye
+          </div>
+        )}
+      </div>
 
       {MENU_GROUPS.map((group) => (
-        <div key={group.label} style={{ marginBottom: "20px" }}>
+        <div key={group.label} className="mb-5">
           {isOpen && (
-            <p
-              style={{
-                fontSize: "11px",
-                color: "#999",
-                marginBottom: "8px",
-                letterSpacing: "0.05em",
-              }}
-            >
+            <p className="text-[11px] text-sidebar-muted mb-2 tracking-[0.05em] px-3">
               {group.label}
             </p>
           )}
@@ -37,32 +32,22 @@ function Sidebar({ isOpen }) {
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                style={({ isActive }) => ({
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "8px 10px",
-                  marginBottom: "4px",
-                  borderRadius: "6px",
-                  textDecoration: "none",
-                  backgroundColor: isActive ? "#333" : "transparent",
-                  color: isActive ? "#fff" : "#333",
-                })}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-3 mb-1 rounded-[10px] no-underline ${
+                    isActive
+                      ? "bg-sidebar-active text-white"
+                      : "bg-transparent text-sidebar-text"
+                  }`
+                }
               >
-                <Icon size={16} />
+                <Icon size={20} />
                 {isOpen && (
                   <>
-                    <span style={{ flex: 1 }}>{item.label}</span>
+                    <span className="flex-1 text-[14.5px] font-semibold">
+                      {item.label}
+                    </span>
                     {item.badge && (
-                      <span
-                        style={{
-                          backgroundColor: "#c00",
-                          color: "#fff",
-                          fontSize: "11px",
-                          borderRadius: "10px",
-                          padding: "1px 7px",
-                        }}
-                      >
+                      <span className="bg-danger text-white text-[11px] font-bold rounded-full px-[7px] py-[1px]">
                         {item.badge}
                       </span>
                     )}
@@ -73,6 +58,16 @@ function Sidebar({ isOpen }) {
           })}
         </div>
       ))}
+
+      <div className="flex-1" />
+
+      {isOpen && (
+        <div className="p-3 text-[11.5px] text-sidebar-muted leading-relaxed">
+          © 2026 SAFEye
+          <br />
+          안전관리 지원 시스템
+        </div>
+      )}
     </div>
   );
 }
