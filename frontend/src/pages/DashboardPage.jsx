@@ -1,5 +1,16 @@
+import StatsSummary from "../components/StatsSummary";
+import ResultList from "../components/ResultList";
+
 function DashboardPage() {
-  return <h2>대시보드 (준비 중)</h2>;
+  return (
+    <div>
+      <StatsSummary />
+
+      <div className="bg-white border border-border rounded-[14px] p-6">
+        <ResultList />
+      </div>
+    </div>
+  );
 }
 
 export default DashboardPage;

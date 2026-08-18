@@ -9,7 +9,7 @@ function StatsSummary() {
     const fetchResults = async () => {
       try {
         const response = await fetch(
-          `$import.meta.env.VITE_API_URL}/api/results`,
+          `${import.meta.env.VITE_API_URL}/api/results`,
         );
         const data = await response.json();
         setResults(data);
@@ -24,44 +24,44 @@ function StatsSummary() {
     fetchResults();
   }, []);
 
-  if (loading)
-    return (
-      <div style={{ padding: "16px", color: "#666" }}>통계 불러오는 중...</div>
-    );
+  if (loading) return <div className="p-4 text-muted">통계 불러오는 중...</div>;
   if (error)
-    return <div style={{ padding: "16px", color: "#c00" }}>{error}</div>;
+    return <div className="p-4 text-danger font-semibold">{error}</div>;
 
   const total = results.length;
   const dangerCount = results.filter((item) => item.is_danger).length;
-  const safeCount = total - dangerCount;
   const dangerRate = total === 0 ? 0 : Math.round((dangerCount / total) * 100);
 
+  const thisWeekCount = total;
+
   return (
-    <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
-      <StatCard label="전체 건수" value={total} />
-      <StatCard label="위험 감지" value={dangerCount} color="#c00" />
-      <StatCard label="안전" value={safeCount} color="#2a7a2a" />
-      <StatCard label="위험 비율" value={`${dangerRate}%`} color="#c00" />
+    <div className="grid grid-cols-4 gap-4 mb-6">
+      <StatCard label="총 분석 건수" value={total} unit="건" />
+      <StatCard
+        label="고위험 감지"
+        value={dangerCount}
+        unit="건"
+        color="text-danger"
+      />
+      <StatCard label="이번 주 분석" value={thisWeekCount} unit="건" />
+      <StatCard
+        label="위험 비율"
+        value={dangerRate}
+        unit="%"
+        color="text-danger"
+      />
     </div>
   );
 }
 
-function StatCard({ label, value, color = "#333" }) {
+function StatCard({ label, value, color = "text-ink" }) {
   return (
-    <div
-      style={{
-        flex: 1,
-        padding: "16px",
-        backgroundColor: "#fafafa",
-        border: "1px solid #eee",
-        borderRadius: "8px",
-        textAlign: "center",
-      }}
-    >
-      <p style={{ fontSize: "13px", color: "#888", marginBottom: "4px" }}>
-        {label}
-      </p>
-      <p style={{ fontSize: "24px", fontWeight: "bold", color }}>{value}</p>
+    <div className="bg-white border border-border rounded-[14px] p-5">
+      <p className="text-[13px] text-muted font-semibold mb-2.5">{label}</p>
+      <div className="flex items-baseline gap-1.5">
+        <p className={`text-[28px] font-extrabold ${color}`}>{value}</p>
+        <p className="text-[13px] text-muted">{unit}</p>
+      </div>
     </div>
   );
 }
