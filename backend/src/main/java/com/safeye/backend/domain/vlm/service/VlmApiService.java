@@ -8,6 +8,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Service;
@@ -60,12 +61,12 @@ public class VlmApiService {
         .body(BodyInserters.fromMultipartData(bodyBuilder.build()))
         .retrieve()
 
-        .onStatus(status -> status.is4xxClientError(), response -> {
+        .onStatus(HttpStatusCode::is4xxClientError, response -> {
           log.error("VLM 서버 클라이언트 에러 (4xx): {}", response.statusCode());
           return Mono.error(new BusinessException(GlobalErrorCode.VLM_SERVER_ERROR));
         })
 
-        .onStatus(status -> status.is5xxServerError(), response -> {
+        .onStatus(HttpStatusCode::is5xxServerError, response -> {
           log.error("VLM 서버 내부 에러 (5xx): {}", response.statusCode());
           return Mono.error(new BusinessException(GlobalErrorCode.VLM_SERVER_ERROR));
         })
