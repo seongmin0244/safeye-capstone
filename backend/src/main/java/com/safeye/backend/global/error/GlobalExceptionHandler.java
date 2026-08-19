@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
     ErrorCode errorCode = e.getErrorCode();
     log.warn("[CustomException] Type: {}, Code: {}, Message: {}, Details: {}", e.getClass().getSimpleName(), errorCode.getCode(), e.getMessage(), e.getDetails());
     return ResponseEntity
-        .status(errorCode.getHttpStatus())
+        .status(errorCode.getStatus())
         .body(ApiResponse.fail(errorCode, e.getDetails()));
   }
 
@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
     log.warn("[MethodArgumentNotValidException] Details: {}", validationDetails);
     GlobalErrorCode errorCode = GlobalErrorCode.INVALID_INPUT_VALUE;
     return ResponseEntity
-        .status(errorCode.getHttpStatus())
+        .status(errorCode.getStatus())
         .body(ApiResponse.fail(errorCode, validationDetails));
   }
 
@@ -54,7 +54,7 @@ public class GlobalExceptionHandler {
     log.warn("[ConstraintViolationException] Details: {}", validationDetails);
     GlobalErrorCode errorCode = GlobalErrorCode.INVALID_INPUT_VALUE;
     return ResponseEntity
-        .status(errorCode.getHttpStatus())
+        .status(errorCode.getStatus())
         .body(ApiResponse.fail(errorCode, validationDetails));
   }
 
@@ -64,7 +64,7 @@ public class GlobalExceptionHandler {
     log.error("[UncaughtException] Message: {}", e.getMessage(), e);
     GlobalErrorCode errorCode = GlobalErrorCode.INTERNAL_SERVER_ERROR;
     return ResponseEntity
-        .status(errorCode.getHttpStatus())
+        .status(errorCode.getStatus())
         .body(ApiResponse.fail(errorCode));
   }
 
