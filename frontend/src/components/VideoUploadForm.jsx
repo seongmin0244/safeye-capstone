@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
-import { DEV_ZONE_ID, UPLOAD_ENDPOINT } from "../constants/config";
+import { DEV_ZONE_ID, UPLOAD_VIDEO_ENDPOINT, MAX_VIDEO_SIZE_MB } from "../constants/config";
 
-const MAX_SIZE_MB = 100;
 
 function VideoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -23,9 +22,9 @@ function VideoUploadForm() {
     }
 
     const sizeMB = file.size / (1024 * 1024);
-    if (sizeMB > MAX_SIZE_MB) {
+    if (sizeMB > MAX_VIDEO_SIZE_MB) {
       setFileError(
-        `파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_SIZE_MB}MB 이하만 가능합니다.`,
+        `파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_VIDEO_SIZE_MB}MB 이하만 가능합니다.`,
       );
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -50,12 +49,17 @@ function VideoUploadForm() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}${UPLOAD_ENDPOINT}`,
+        `${import.meta.env.VITE_API_URL}${UPLOAD_VIDEO_ENDPOINT}`,
         {
           method: "POST",
           body: formData,
         },
       );
+
+      if(response.status === 413) {
+        throw new Error("파일 용량이 서버 제한을 초과했습니다.");
+      }
+
       const json = await response.json();
 
       if(!response.ok || !json.success) {
@@ -79,6 +83,9 @@ function VideoUploadForm() {
       className="bg-white border border-border rounded-[14px] p-6 max-w-[420px]"
     >
       <h2 className="text-[14.5px] font-bold mb-4">영상 업로드</h2>
+      <p className="text-xs text-warn font-semibold mb-3">
+        영상 분석은 현재 준비 중입니다. 업로드는 가능하지만 분석 결과가 제공되지는 않습니다.
+      </p>
       <input
         type="file"
         accept=".mp4, .avi, .mov"
@@ -104,7 +111,7 @@ function VideoUploadForm() {
               클릭하여 영상 선택
             </span>
             <span className="text-xs text-muted">
-              최대 {MAX_SIZE_MB}MB까지 가능합니다.
+              최대 {MAX_VIDEO_SIZE_MB}MB까지 가능합니다.
             </span>
           </>
         )}

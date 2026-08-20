@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { DEV_ZONE_ID, UPLOAD_ENDPOINT } from "../constants/config";
+import { DEV_ZONE_ID, UPLOAD_IMAGE_ENDPOINT } from "../constants/config";
 
 function PhotoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -35,12 +35,17 @@ function PhotoUploadForm() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}${UPLOAD_ENDPOINT}`,
+        `${import.meta.env.VITE_API_URL}${UPLOAD_IMAGE_ENDPOINT}`,
         {
           method: "POST",
           body: formData,
         },
       );
+
+      if(response.status === 413) {
+        throw new Error("파일 용량이 서버 제한을 초과했습니다.");
+      }
+
       const json = await response.json();
 
       if(!response.ok || !json.success) {
