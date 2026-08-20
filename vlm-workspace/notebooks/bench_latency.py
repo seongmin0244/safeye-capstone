@@ -139,6 +139,7 @@ async def bench(args) -> list[dict]:
                     for name, raw in images:
                         img = to_edge(raw, edge)
                         if args.via_api:
+                            assert api_client is not None
                             result = await run_via_api(api_client, args.via_api, img, prompt, args.key)
                         else:
                             result = await run_direct(client, model, img, prompt)
