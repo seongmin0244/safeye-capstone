@@ -65,7 +65,7 @@ class LocalProxyBackend(LocalBackend):
     """게이트웨이가 로컬 FastAPI 노드의 `/v1/analyze_internal`을 호출하는 백엔드."""
 
     name = "local"
-    
+
     def __init__(self, base_url: str | None = None, model: str | None = None):
         super().__init__(base_url or settings.local_base_url, model)
 
