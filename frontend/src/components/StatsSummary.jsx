@@ -41,7 +41,7 @@ function StatsSummary() {
   );
 }
 
-function StatCard({ label, value, color = "text-ink" }) {
+function StatCard({ label, value, unit, color = "text-ink" }) {
   return (
     <div className="bg-white border border-border rounded-[14px] p-5">
       <p className="text-[13px] text-muted font-semibold mb-2.5">{label}</p>

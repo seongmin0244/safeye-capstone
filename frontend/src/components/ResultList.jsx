@@ -8,7 +8,7 @@ const SEVERITY_STYLE = {
 };
 
 function ResultList() {
-  const [result, setResults] = useState([]);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -53,7 +53,7 @@ function ResultList() {
       {results.length === 0 ? (
         <p className="text-muted text-sm">아직 결과가 없습니다.</p>
       ) : (
-        result.map((item, index) => {
+        results.map((item, index) => {
           const style = SEVERITY_STYLE[item.severity] ?? SEVERITY_STYLE.INFO;
 
           return (
