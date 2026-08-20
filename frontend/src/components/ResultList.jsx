@@ -1,4 +1,11 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+
+const SEVERITY_STYLE = {
+  CRITICAL: {label: "심각", box:"border-dange bg-danger-bg", text: "text-danger"},
+  WARNING: {label:"주의", box:"border-warn bg-warn-bg", text: "text-warn"},
+  INFO: {label:"안전", box: "border-border bg-white", text:"text-safe"},
+};
 
 function ResultList() {
   const [result, setResults] = useState([]);
@@ -11,8 +18,8 @@ function ResultList() {
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/api/results`,
         );
-        const data = await response.json();
-        setResults(data);
+        const json = await response.json();
+        setResults(json.data ?? []);
       } catch (err) {
         setError("결과를 불러오지 못 했습니다.");
         console.error(err);
@@ -26,7 +33,7 @@ function ResultList() {
 
   if (loading) {
     return (
-      <div className="p-4 text-center text-muted bg-[oklch(0.97_0.004_265)] rounded-lg">
+      <div className="p-4 text-center text-muted">
         불러오는 중...
       </div>
     );
@@ -46,25 +53,30 @@ function ResultList() {
       {results.length === 0 ? (
         <p className="text-muted text-sm">아직 결과가 없습니다.</p>
       ) : (
-        result.map((item) => (
-          <div
-            key={item.id}
-            className={`border rounded-lg p-3 mb-2.5 ${item.is_danger ? "border-danger bg-danger-bg" : "border-border bg-white"}`}
+        result.map((item, index) => {
+          const style = SEVERITY_STYLE[item.severity] ?? SEVERITY_STYLE.INFO;
+
+          return (
+            <div
+            key={item.id ?? index}
+            className={`border rounded-lg p-3 mb-2.5 ${style.box}`}
           >
-            <p
-              className={`font-bold mb-1 ${item.is_danger ? "text-danger" : "text-safe"}`}
-            >
-              {item.is_danger ? "⚠️위험" : "✅안전"}
-            </p>
-            <p className="text-sm text-ink mb-1">심각도: {item.severity}</p>
-            <p className="text-sm text-ink mb-1">
-              설명: {item.vlm_description}
-            </p>
-            <p className="text-sm text-ink">
-              위반 규정: {item.violated_regulation || "없음"}
-            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`font-bold ${style.text}`}>{style.label}</span>
+              {item.zoneName && (<span className="text-xs text-muted">· {item.zoneName}</span>)}
+            </div>
+            
+            <p className="text-sm text-ink mb-1">{item.vlmDescription}</p>
+            
+            {item.violatedRegulation && (<p className="text-sm text-muted mb-1">위반 규정: {item.violatedRegulation}</p>)}
+
+            {item.actionGuide && (<p className="text-sm text-ink mt-2 p-2.5 bg-white/60 rounder-md">조치 방법: {item.actionGuide}</p>)}
+
+            {item.id && (<Link to={`/history/${item.id}`} className="inline-block mt-2 text-xs font-semibold text-accent no-underline">상세 보기 ➡️</Link>)}
+
           </div>
-        ))
+          )
+        })
       )}
     </div>
   );
