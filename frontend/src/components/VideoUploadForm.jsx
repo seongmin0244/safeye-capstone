@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { DEV_ZONE_ID, UPLOAD_ENDPOINT } from "../constants/config";
 
 const MAX_SIZE_MB = 100;
 
@@ -38,27 +39,31 @@ function VideoUploadForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile) {
-      console.log("영상을 먼저 선택해주세요");
-      return;
-    }
+    if (!selectedFile) return;
 
     const formData = new FormData();
-    formData.append("video", selectedFile);
+    formData.append("file", selectedFile);
+    formData.append("zoneId", DEV_ZONE_ID);
 
     setUploading(true);
     setUploadStatus(null);
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/upload-video`,
+        `${import.meta.env.VITE_API_URL}${UPLOAD_ENDPOINT}`,
         {
           method: "POST",
           body: formData,
         },
       );
-      const result = await response.json();
-      console.log("서버 응답:", result);
+      const json = await response.json();
+
+      if(!response.ok || !json.success) {
+        throw new Error(json.error?.message ?? "업로드 실패");
+      }
+
+      const data = json.data;
+      console.log("분석 결과:", data);
       setUploadStatus("success");
     } catch (error) {
       console.error("전송 실패:", error);
@@ -76,7 +81,7 @@ function VideoUploadForm() {
       <h2 className="text-[14.5px] font-bold mb-4">영상 업로드</h2>
       <input
         type="file"
-        accept="video/*"
+        accept=".mp4, .avi, .mov"
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"

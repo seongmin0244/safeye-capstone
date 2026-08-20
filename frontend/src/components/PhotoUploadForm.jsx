@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { DEV_ZONE_ID, UPLOAD_ENDPOINT } from "../constants/config";
 
 function PhotoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -23,28 +24,33 @@ function PhotoUploadForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile) {
-      console.log("파일을 선택해주세요");
-      return;
-    }
+    if (!selectedFile) return;
 
     const formData = new FormData();
-    formData.append("image", selectedFile);
+    formData.append("file", selectedFile);
+    formData.append("zoneId", DEV_ZONE_ID);
 
     setUploading(true);
     setUploadStatus(null);
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/upload`,
+        `${import.meta.env.VITE_API_URL}${UPLOAD_ENDPOINT}`,
         {
           method: "POST",
           body: formData,
         },
       );
-      const result = await response.json();
-      console.log("서버 응답:", result);
+      const json = await response.json();
+
+      if(!response.ok || !json.success) {
+        throw new Error(json.error?.message ?? "업로드 실패");
+      }
+
+      const data = json.data;
+      console.log("분석 결과:", data);
       setUploadStatus("success");
+
     } catch (error) {
       console.error("전송 실패:", error);
       setUploadStatus("error");
@@ -62,7 +68,7 @@ function PhotoUploadForm() {
 
       <input
         type="file"
-        accept="image/*"
+        accept=".jpg, .jpeg, .png, .webp"
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
