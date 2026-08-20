@@ -12,16 +12,13 @@ public enum GlobalErrorCode implements ErrorCode {
   INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "CMM-001", "잘못된 입력값입니다."),
   INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "CMM-002", "서버 내부 오류가 발생했습니다."),
 
-  // [ZON] 구역(WorkZone) 에러
-  ZONE_NOT_FOUND(HttpStatus.NOT_FOUND, "ZON-001", "해당 구역을 찾을 수 없습니다."),
-
   // [EVT] 위험 감지(DangerEvent) 에러
   EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "EVT-001", "해당 위험 이벤트를 찾을 수 없습니다."),
 
   // [VLM] AI 통신 에러
   VLM_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "VLM-001", "AI 분석 서버와 통신 중 오류가 발생했습니다.");
 
-  private final HttpStatus httpStatus;
+  private final HttpStatus status;
   private final String code;
   private final String message;
 }
