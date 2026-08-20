@@ -11,8 +11,8 @@ function StatsSummary() {
         const response = await fetch(
           `${import.meta.env.VITE_API_URL}/api/results`,
         );
-        const data = await response.json();
-        setResults(data);
+        const json = await response.json();
+        setResults(json.data ?? []);
       } catch (err) {
         setError("통계를 불러오는 데 실패했습니다.");
         console.error(err);
@@ -29,27 +29,14 @@ function StatsSummary() {
     return <div className="p-4 text-danger font-semibold">{error}</div>;
 
   const total = results.length;
-  const dangerCount = results.filter((item) => item.is_danger).length;
-  const dangerRate = total === 0 ? 0 : Math.round((dangerCount / total) * 100);
-
+  const dangerCount = results.filter((item) => item.isDanger).length;
   const thisWeekCount = total;
 
   return (
     <div className="grid grid-cols-4 gap-4 mb-6">
       <StatCard label="총 분석 건수" value={total} unit="건" />
-      <StatCard
-        label="고위험 감지"
-        value={dangerCount}
-        unit="건"
-        color="text-danger"
-      />
+      <StatCard label="고위험 발견" value={dangerCount} unit="건" color="text-danger" />
       <StatCard label="이번 주 분석" value={thisWeekCount} unit="건" />
-      <StatCard
-        label="위험 비율"
-        value={dangerRate}
-        unit="%"
-        color="text-danger"
-      />
     </div>
   );
 }
