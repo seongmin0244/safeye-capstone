@@ -9,8 +9,9 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum WorkZoneErrorCode implements ErrorCode {
 
-  ZONE_NOT_FOUND(HttpStatus.NOT_FOUND, "ZON-001", "해당 구역을 찾을 수 없습니다.");
-
+  ZONE_NOT_FOUND(HttpStatus.NOT_FOUND, "ZONE-001", "해당 구역을 찾을 수 없습니다."),
+  DUPLICATE_ZONE_NAME(HttpStatus.CONFLICT, "ZONE-002", "이미 존재하는 구역 이름입니다.")
+  ;
 
   private final HttpStatus status;
   private final String code;
