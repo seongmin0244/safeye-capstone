@@ -59,6 +59,7 @@ frontend/build/
 .venv/
 venv/
 **/.venv/
+.venv_clean/
 
 # Python cache
 __pycache__/

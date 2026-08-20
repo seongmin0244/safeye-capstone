@@ -1,97 +1,280 @@
 from collections import defaultdict
-
-from src.schemas import AggregatedHazard, FrameResult
-# TODO: 기존 VLM 프로젝트의 app.schemas와 통합 필요
-# 현재 RAG 프로토타입의 schema 기준으로 작성된 코드
+from typing import Any
 
 
-RISK_FIELD_MAP = {
-    "NO_HELMET": "no_helmet",
-    "FALL_HAZARD": "fall_hazard",
-    "BLOCKED_PATH": "blocked_path",
+# ============================================================
+# 위험 유형 설정
+# ============================================================
+
+VALID_RISK_TYPES = {
+    "NO_HELMET",
+    "FALL_HAZARD",
+    "BLOCKED_PATH",
 }
 
-CERTAINTY_SCORE = {
+
+CONFIDENCE_SCORE = {
     "LOW": 1,
     "MEDIUM": 2,
     "HIGH": 3,
 }
 
 
-def unique_strings(values: list[str]) -> list[str]:
-    """순서를 유지하면서 중복 문자열을 제거한다."""
+MIN_DETECTION_COUNT = {
+    "NO_HELMET": 2,
+    "FALL_HAZARD": 2,
+    "BLOCKED_PATH": 2,
+}
 
-    return list(dict.fromkeys(values))
 
+# ============================================================
+# Utility
+# ============================================================
+
+def unique_strings(
+    values: list[str],
+) -> list[str]:
+    """
+    순서를 유지하면서 문자열 중복 제거
+    """
+
+    return list(
+        dict.fromkeys(values)
+    )
+
+
+def normalize_risk_types(
+    risk_type: str,
+) -> list[str]:
+    """
+    VLM이 다음처럼 잘못 반환한 경우 대응:
+
+    FALL_HAZARD | BLOCKED_PATH
+
+    각각의 위험 유형으로 분리한다.
+    """
+
+    if not risk_type:
+        return []
+
+    values = (
+        risk_type
+        .replace(",", "|")
+        .split("|")
+    )
+
+    normalized = []
+
+    for value in values:
+
+        value = value.strip()
+
+        if value in VALID_RISK_TYPES:
+            normalized.append(
+                value
+            )
+
+    return normalized
+
+
+# ============================================================
+# 여러 프레임 위험 통합
+# ============================================================
 
 def aggregate_frame_results(
-    frame_results: list[FrameResult],
-) -> list[AggregatedHazard]:
-    """프레임별 판단을 위험 유형별로 통합한다."""
+    frame_results: list[dict[str, Any]],
+    min_detection_count: int = 2,
+) -> list[dict[str, Any]]:
+    """
+    여러 프레임의 hazard 결과를 위험 유형별로 통합한다.
+    """
 
     buckets = defaultdict(
         lambda: {
-            "timestamps": [],
+            "frames": [],
             "evidence": [],
-            "scores": [],
+            "confidence_scores": [],
         }
     )
 
+    # ========================================================
+    # 1. 프레임별 hazard 수집
+    # ========================================================
+
     for frame_result in frame_results:
-        for risk_type, field_name in RISK_FIELD_MAP.items():
-            judgement = getattr(
-                frame_result.analysis,
-                field_name,
+
+        frame_name = frame_result.get(
+            "frame",
+            "unknown",
+        )
+
+        hazards = frame_result.get(
+            "hazards",
+            [],
+        )
+
+        print(
+            f"[Aggregator] "
+            f"{frame_name}: "
+            f"{len(hazards)}개 hazard"
+        )
+
+        for hazard in hazards:
+
+            detected = hazard.get(
+                "detected",
+                False,
             )
 
-            if not judgement.detected:
+            if not detected:
                 continue
 
-            buckets[risk_type]["timestamps"].append(
-                frame_result.timestamp_seconds
-            )
-            buckets[risk_type]["evidence"].append(
-                judgement.evidence
-            )
-            buckets[risk_type]["scores"].append(
-                CERTAINTY_SCORE[judgement.certainty]
+            raw_risk_type = hazard.get(
+                "risk_type",
+                "",
             )
 
-    aggregated: list[AggregatedHazard] = []
+            risk_types = normalize_risk_types(
+                raw_risk_type
+            )
+
+            if not risk_types:
+
+                print(
+                    "[Aggregator 경고] "
+                    f"잘못된 risk_type: "
+                    f"{raw_risk_type}"
+                )
+
+                continue
+
+            confidence = hazard.get(
+                "confidence",
+                "LOW",
+            )
+
+            evidence = hazard.get(
+                "evidence",
+                "",
+            )
+
+            for risk_type in risk_types:
+
+                buckets[
+                    risk_type
+                ]["frames"].append(
+                    frame_name
+                )
+
+                if evidence:
+
+                    buckets[
+                        risk_type
+                    ]["evidence"].append(
+                        evidence
+                    )
+
+                buckets[
+                    risk_type
+                ][
+                    "confidence_scores"
+                ].append(
+                    CONFIDENCE_SCORE.get(
+                        confidence,
+                        1,
+                    )
+                )
+
+    # ========================================================
+    # 2. 위험 유형별 최종 통합
+    # ========================================================
+
+    aggregated_results = []
 
     for risk_type, data in buckets.items():
-        timestamps = data["timestamps"]
-        scores = data["scores"]
 
-        detected_count = len(timestamps)
-        average_score = sum(scores) / detected_count
-        maximum_score = max(scores)
-
-        # 프로토타입용 위험 확정 조건
-        confirmed = (
-            detected_count >= 2
-            or maximum_score == CERTAINTY_SCORE["HIGH"]
+        evidence_frames = unique_strings(
+            data["frames"]
         )
 
-        if average_score >= 2.5:
-            certainty = "HIGH"
-        elif average_score >= 1.5:
-            certainty = "MEDIUM"
-        else:
-            certainty = "LOW"
+        detection_count = len(
+            evidence_frames
+        )
 
-        aggregated.append(
-            AggregatedHazard(
-                risk_type=risk_type,
-                confirmed=confirmed,
-                first_detected_at=min(timestamps),
-                last_detected_at=max(timestamps),
-                detected_frame_count=detected_count,
-                certainty=certainty,
-                evidence=unique_strings(
-                    data["evidence"]
-                )[:3],
+        required_count = (
+            MIN_DETECTION_COUNT.get(
+                risk_type,
+                min_detection_count,
             )
         )
 
-    return aggregated
+        detected = (
+            detection_count
+            >= required_count
+        )
+
+        scores = data[
+            "confidence_scores"
+        ]
+
+        if scores:
+
+            average_score = (
+                sum(scores)
+                / len(scores)
+            )
+
+        else:
+
+            average_score = 1
+
+        # ----------------------------------------------------
+        # 최종 confidence 계산
+        # ----------------------------------------------------
+
+        if (
+            detection_count >= 3
+            and average_score >= 2
+        ):
+
+            final_confidence = "HIGH"
+
+        elif (
+            detection_count >= 2
+            and average_score >= 1.5
+        ):
+
+            final_confidence = "MEDIUM"
+
+        else:
+
+            final_confidence = "LOW"
+
+        aggregated_results.append(
+            {
+                "risk_type":
+                    risk_type,
+
+                "detected":
+                    detected,
+
+                "confidence":
+                    final_confidence,
+
+                "detection_count":
+                    detection_count,
+
+                "required_count":
+                    required_count,
+
+                "evidence_frames":
+                    evidence_frames,
+
+                "evidence":
+                    unique_strings(
+                        data["evidence"]
+                    ),
+            }
+        )
+
+    return aggregated_results
