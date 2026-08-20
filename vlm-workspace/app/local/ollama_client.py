@@ -3,6 +3,7 @@ import json
 import time
 from pathlib import Path
 
+import cv2
 import requests
 
 from app.local.config import (
@@ -12,7 +13,7 @@ from app.local.config import (
 
 
 # ============================================================
-# 기본 경로
+# 기본 설정
 # ============================================================
 
 BASE_DIR = (
@@ -34,18 +35,62 @@ OLLAMA_URL = (
 )
 
 
+# VLM에 전달할 이미지의 최대 한 변
+MAX_IMAGE_SIDE = 1280
+
+JPEG_QUALITY = 90
+
+
+# ============================================================
+# 추가 출력 제한 프롬프트
+# ============================================================
+
+OUTPUT_CONSTRAINTS = """
+[출력 언어 규칙]
+
+- 모든 자연어 설명은 반드시 한국어로 작성하세요.
+- position은 한국어로 작성하세요.
+- observations는 한국어로 작성하세요.
+- evidence는 한국어로 작성하세요.
+- scene_description은 한국어로 작성하세요.
+- 자연어 설명을 영어 또는 중국어로 작성하지 마세요.
+- 여러 언어를 혼용하지 마세요.
+
+다음 JSON enum 값은 반드시 영어 원문 그대로 유지하세요:
+- WEARING
+- NOT_WEARING
+- UNCERTAIN
+- NO_HELMET
+- FALL_HAZARD
+- BLOCKED_PATH
+- LOW
+- MEDIUM
+- HIGH
+
+중요:
+- 위 언어 규칙 외에는 기존 분석 내용, 판단 기준, 설명 수준을 변경하지 마세요.
+- 기존 프롬프트에서 요구하는 정보를 생략하거나 축약하지 마세요.
+"""
+
+
 # ============================================================
 # JSON Schema
 # ============================================================
 
 VLM_SCHEMA = {
+
     "type": "object",
+
     "properties": {
 
         "workers": {
+
             "type": "array",
+
             "items": {
+
                 "type": "object",
+
                 "properties": {
 
                     "worker_id": {
@@ -53,7 +98,9 @@ VLM_SCHEMA = {
                     },
 
                     "helmet": {
+
                         "type": "string",
+
                         "enum": [
                             "WEARING",
                             "NOT_WEARING",
@@ -62,7 +109,9 @@ VLM_SCHEMA = {
                     },
 
                     "vest": {
+
                         "type": "string",
+
                         "enum": [
                             "WEARING",
                             "NOT_WEARING",
@@ -75,7 +124,9 @@ VLM_SCHEMA = {
                     },
 
                     "observations": {
+
                         "type": "array",
+
                         "items": {
                             "type": "string"
                         },
@@ -94,16 +145,21 @@ VLM_SCHEMA = {
             },
         },
 
+
         "hazards": {
+
             "type": "array",
 
             "items": {
+
                 "type": "object",
 
                 "properties": {
 
                     "risk_type": {
+
                         "type": "string",
+
                         "enum": [
                             "NO_HELMET",
                             "FALL_HAZARD",
@@ -116,7 +172,9 @@ VLM_SCHEMA = {
                     },
 
                     "confidence": {
+
                         "type": "string",
+
                         "enum": [
                             "LOW",
                             "MEDIUM",
@@ -140,6 +198,7 @@ VLM_SCHEMA = {
             },
         },
 
+
         "scene_description": {
             "type": "string"
         },
@@ -160,11 +219,9 @@ VLM_SCHEMA = {
 # ============================================================
 
 def load_video_prompt() -> str:
-    """
-    video_analysis.txt 파일을 읽는다.
-    """
 
     if not PROMPT_PATH.exists():
+
         raise FileNotFoundError(
             "영상 분석 프롬프트를 찾을 수 없습니다.\n"
             f"경로: {PROMPT_PATH}"
@@ -175,11 +232,16 @@ def load_video_prompt() -> str:
     ).strip()
 
     if not prompt:
+
         raise ValueError(
             "video_analysis.txt가 비어 있습니다."
         )
 
-    return prompt
+    return (
+        prompt
+        + "\n\n"
+        + OUTPUT_CONSTRAINTS
+    )
 
 
 # ============================================================
@@ -189,21 +251,20 @@ def load_video_prompt() -> str:
 def validate_image(
     image_path: str | Path,
 ) -> Path:
-    """
-    이미지가 실제로 존재하는지 확인한다.
-    """
 
     image_path = Path(
         image_path
     )
 
     if not image_path.exists():
+
         raise FileNotFoundError(
             f"이미지를 찾을 수 없습니다: "
             f"{image_path}"
         )
 
     if not image_path.is_file():
+
         raise ValueError(
             f"이미지 파일이 아닙니다: "
             f"{image_path}"
@@ -215,6 +276,7 @@ def validate_image(
         ".png",
         ".webp",
     }:
+
         raise ValueError(
             "지원하지 않는 이미지 형식입니다: "
             f"{image_path.suffix}"
@@ -224,58 +286,161 @@ def validate_image(
 
 
 # ============================================================
-# 이미지 Base64 변환
+# VLM 입력용 이미지 전처리
 # ============================================================
 
-def image_to_base64(
+def prepare_image_base64(
     image_path: Path,
 ) -> str:
     """
-    Ollama REST API 전달용 Base64 문자열 생성.
+    원본 프레임을 직접 전송하지 않고
+    OpenCV로 다시 읽어서 VLM용 JPEG로 변환한다.
+
+    큰 이미지는 최대 1280px까지 자동 축소한다.
+    원본 프레임 파일 자체는 변경하지 않는다.
     """
 
-    with image_path.open(
-        "rb"
-    ) as file:
+    image = cv2.imread(
+        str(image_path)
+    )
 
-        image_bytes = file.read()
+    if image is None:
+
+        raise RuntimeError(
+            f"이미지를 읽을 수 없습니다: "
+            f"{image_path}"
+        )
+
+    height, width = (
+        image.shape[:2]
+    )
+
+    max_side = max(
+        width,
+        height,
+    )
+
+    # --------------------------------------------------------
+    # 이미지 크기 축소
+    # --------------------------------------------------------
+
+    if max_side > MAX_IMAGE_SIDE:
+
+        scale = (
+            MAX_IMAGE_SIDE
+            / max_side
+        )
+
+        new_width = max(
+            1,
+            int(
+                width
+                * scale
+            )
+        )
+
+        new_height = max(
+            1,
+            int(
+                height
+                * scale
+            )
+        )
+
+        image = cv2.resize(
+            image,
+            (
+                new_width,
+                new_height,
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        print(
+            f"[이미지 전처리] "
+            f"{image_path.name}: "
+            f"{width}x{height} "
+            f"→ "
+            f"{new_width}x{new_height}"
+        )
+
+    # --------------------------------------------------------
+    # JPEG 재인코딩
+    # --------------------------------------------------------
+
+    success, encoded = (
+        cv2.imencode(
+            ".jpg",
+            image,
+            [
+                cv2.IMWRITE_JPEG_QUALITY,
+                JPEG_QUALITY,
+            ],
+        )
+    )
+
+    if not success:
+
+        raise RuntimeError(
+            f"JPEG 인코딩 실패: "
+            f"{image_path}"
+        )
 
     return base64.b64encode(
-        image_bytes
+        encoded.tobytes()
     ).decode(
         "utf-8"
     )
 
 
 # ============================================================
-# JSON 검사
+# Markdown Fence 제거
+# ============================================================
+
+def remove_markdown_fence(
+    content: str,
+) -> str:
+
+    content = content.strip()
+
+    if not content.startswith(
+        "```"
+    ):
+
+        return content
+
+    lines = content.splitlines()
+
+    if lines:
+
+        lines = lines[1:]
+
+    if (
+        lines
+        and lines[-1].strip()
+        == "```"
+    ):
+
+        lines = lines[:-1]
+
+    return "\n".join(
+        lines
+    ).strip()
+
+
+# ============================================================
+# JSON 파싱
 # ============================================================
 
 def parse_json_response(
     content: str,
 ) -> dict:
-    """
-    Ollama 응답이 정상 JSON인지 확인한다.
-    """
 
-    content = content.strip()
-
-    if content.startswith("```"):
-
-        lines = content.splitlines()
-
-        if lines:
-            lines = lines[1:]
-
-        if (
-            lines
-            and lines[-1].strip() == "```"
-        ):
-            lines = lines[:-1]
-
-        content = "\n".join(
-            lines
-        ).strip()
+    content = (
+        remove_markdown_fence(
+            content
+        )
+    )
 
     try:
 
@@ -310,38 +475,36 @@ def parse_json_response(
 
 
 # ============================================================
-# 이미지 분석
+# Ollama 요청
 # ============================================================
 
-def analyze_image(
-    image_path: str | Path,
-    prompt: str | None = None,
-    max_retries: int = 3,
-) -> str:
+def request_ollama(
+    image_path: Path,
+    image_base64: str,
+    prompt: str,
+    attempt: int,
+) -> dict:
     """
-    산업현장 프레임 하나를
-    Qwen2.5-VL로 분석한다.
-
-    반환값:
-        JSON 문자열
+    재시도 횟수에 따라 repeat_penalty를
+    조금씩 증가시켜 반복 생성 가능성을 낮춘다.
     """
 
-    image_path = validate_image(
-        image_path
-    )
-
-    if prompt is None:
-        prompt = load_video_prompt()
-
-    image_base64 = (
-        image_to_base64(
-            image_path
+    repeat_penalty = (
+        1.15
+        + (
+            attempt - 1
         )
+        * 0.05
     )
 
-    # ========================================================
-    # REST API 요청 데이터
-    # ========================================================
+    temperature = min(
+        0.10
+        + (
+            attempt - 1
+        )
+        * 0.05,
+        0.20,
+    )
 
     payload = {
 
@@ -355,7 +518,6 @@ def analyze_image(
             image_base64
         ],
 
-        # JSON Schema로 출력 구조 강제
         "format":
             VLM_SCHEMA,
 
@@ -367,16 +529,82 @@ def analyze_image(
 
         "options": {
 
-            # 결과 일관성
             "temperature":
-                0,
+                temperature,
 
-            # 기존 512에서는 긴 JSON이
-            # 잘릴 가능성이 있으므로 증가
+            # 정상적인 JSON이면 충분한 크기.
+            # 무한 반복을 2048까지 허용하지 않는다.
             "num_predict":
-                2048,
+                1200,
+
+            # 반복 억제
+            "repeat_penalty":
+                repeat_penalty,
+
+            "repeat_last_n":
+                256,
+
+            "top_p":
+                0.90,
         },
     }
+
+    response = requests.post(
+        OLLAMA_URL,
+        json=payload,
+        timeout=300,
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    print(
+        f"[Ollama] "
+        f"{image_path.name} "
+        f"status={response.status_code}, "
+        f"done={data.get('done')}, "
+        f"reason={data.get('done_reason')}, "
+        f"tokens={data.get('eval_count')}, "
+        f"model={data.get('model')}"
+    )
+
+    return data
+
+
+# ============================================================
+# 이미지 분석
+# ============================================================
+
+def analyze_image(
+    image_path: str | Path,
+    prompt: str | None = None,
+    max_retries: int = 3,
+) -> str:
+
+    image_path = (
+        validate_image(
+            image_path
+        )
+    )
+
+    if prompt is None:
+
+        prompt = (
+            load_video_prompt()
+        )
+
+    # --------------------------------------------------------
+    # 이미지 리사이즈 + JPEG 재인코딩
+    #
+    # 모든 retry에서 동일한 전처리 이미지를 사용
+    # --------------------------------------------------------
+
+    image_base64 = (
+        prepare_image_base64(
+            image_path
+        )
+    )
 
     last_error = None
 
@@ -391,22 +619,16 @@ def analyze_image(
 
         try:
 
-            response = requests.post(
-                OLLAMA_URL,
-                json=payload,
-                timeout=300,
+            data = request_ollama(
+                image_path=image_path,
+                image_base64=image_base64,
+                prompt=prompt,
+                attempt=attempt,
             )
 
-            response.raise_for_status()
-
-            data = response.json()
-
-            # ------------------------------------------------
-            # 상태 확인
-            # ------------------------------------------------
-
             done = data.get(
-                "done"
+                "done",
+                False
             )
 
             done_reason = data.get(
@@ -414,37 +636,64 @@ def analyze_image(
             )
 
             model = data.get(
-                "model"
+                "model",
+                ""
             )
-
-            eval_count = data.get(
-                "eval_count"
-            )
-
-            print(
-                f"[Ollama] "
-                f"{image_path.name} "
-                f"status={response.status_code}, "
-                f"done={done}, "
-                f"reason={done_reason}, "
-                f"tokens={eval_count}, "
-                f"model={model}"
-            )
-
-            # ------------------------------------------------
-            # 응답 가져오기
-            # ------------------------------------------------
 
             content = data.get(
                 "response",
                 ""
             )
 
-            if not content:
+            # ------------------------------------------------
+            # Ollama 비정상 빈 응답
+            # ------------------------------------------------
+
+            if (
+                not model
+                or not content
+            ):
 
                 raise RuntimeError(
                     "Ollama가 빈 응답을 반환했습니다.\n"
                     f"전체 응답: {data}"
+                )
+
+            # ------------------------------------------------
+            # 정상 종료되지 않음
+            # ------------------------------------------------
+
+            if not done:
+
+                raise RuntimeError(
+                    "Ollama 추론이 정상적으로 "
+                    "완료되지 않았습니다.\n"
+                    f"전체 응답: {data}"
+                )
+
+            # ------------------------------------------------
+            # 출력 길이 한도 도달
+            # ------------------------------------------------
+
+            if done_reason == "length":
+
+                print()
+                print(
+                    "[경고] 모델 출력이 "
+                    "길이 제한에 도달했습니다."
+                )
+
+                print(
+                    "응답 마지막 300자:"
+                )
+
+                print(
+                    content[-300:]
+                )
+
+                raise RuntimeError(
+                    "VLM 응답이 반복되거나 "
+                    "너무 길어 출력 제한에 도달했습니다."
                 )
 
             # ------------------------------------------------
@@ -458,7 +707,7 @@ def analyze_image(
             )
 
             # ------------------------------------------------
-            # 정상 JSON 반환
+            # 정상 반환
             # ------------------------------------------------
 
             return json.dumps(
@@ -491,7 +740,7 @@ def analyze_image(
                 time.sleep(3)
 
     # ========================================================
-    # 모든 요청 실패
+    # 모든 재시도 실패
     # ========================================================
 
     raise RuntimeError(
@@ -553,4 +802,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+
     main()

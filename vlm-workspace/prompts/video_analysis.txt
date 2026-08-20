@@ -72,3 +72,14 @@ JSON 앞이나 뒤에 설명을 추가하지 마세요.
   ],
   "scene_description": "현재 프레임의 상황을 간단하게 설명"
 }
+
+[출력 언어 규칙]
+
+- JSON의 자연어 설명은 반드시 한국어로 작성하세요.
+- position, observations, evidence, scene_description은 반드시 한국어로 작성하세요.
+- 자연어 설명을 영어 또는 중국어로 작성하지 마세요.
+- 단, JSON key와 아래 enum 값은 기존 영어 값을 그대로 사용하세요:
+  WEARING, NOT_WEARING, UNCERTAIN,
+  NO_HELMET, FALL_HAZARD, BLOCKED_PATH,
+  LOW, MEDIUM, HIGH
+- 위 언어 규칙 외에는 기존 분석 방식, 판단 기준, 설명의 상세도를 변경하지 마세요.

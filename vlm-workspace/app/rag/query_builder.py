@@ -2,7 +2,7 @@ from typing import Any
 
 
 # ============================================================
-# 지원하는 위험 유형
+# 지원 위험 유형
 # ============================================================
 
 VALID_RISK_TYPES = {
@@ -13,26 +13,28 @@ VALID_RISK_TYPES = {
 
 
 # ============================================================
-# 위험 유형별 RAG 검색 기본 문장
+# 위험 유형별 RAG 검색문
 # ============================================================
 
 SEARCH_QUERY_MAP = {
 
     "NO_HELMET": (
-        "산업현장에서 근로자가 안전모를 착용하지 않고 "
-        "작업하는 상황과 관련된 보호구 및 안전모 착용 기준"
+        "산업현장에서 근로자가 안전모를 착용하지 않은 상황. "
+        "안전모, 보호구의 지급, 보호구 착용, "
+        "머리 보호 및 낙하·비래 위험에 관한 안전기준"
     ),
 
     "FALL_HAZARD": (
-        "산업현장에서 근로자가 높은 장소에서 작업하며 "
-        "추락 위험이 존재하는 상황과 관련된 "
-        "안전난간, 작업발판, 안전대 및 추락 방지 기준"
+        "산업현장에서 근로자의 추락 위험이 존재하는 상황. "
+        "추락의 방지, 작업발판, 안전난간, 개구부, "
+        "추락방호망, 안전대 및 고소작업에 관한 안전기준"
     ),
 
     "BLOCKED_PATH": (
-        "산업현장 작업 통로에 자재 또는 장애물이 있어 "
-        "근로자의 통행을 방해하는 상황과 관련된 "
-        "작업장 통로 확보 및 정리정돈 기준"
+        "산업현장에서 작업자의 통행 경로 또는 작업장 통로가 "
+        "자재, 장비 또는 장애물로 방해되는 상황. "
+        "통로의 설치, 안전한 통행, 작업장 출입구, "
+        "통로 유지 및 장애물 제거에 관한 안전기준"
     ),
 }
 
@@ -45,7 +47,7 @@ def split_risk_types(
     risk_type: str,
 ) -> list[str]:
     """
-    모델이 실수로 아래처럼 출력해도 처리한다.
+    VLM이 다음과 같이 잘못 출력한 경우에도 처리한다.
 
     NO_HELMET | FALL_HAZARD | BLOCKED_PATH
     """
@@ -74,26 +76,27 @@ def split_risk_types(
 
 
 # ============================================================
-# 프레임 분석 결과 정규화
+# VLM 분석 결과 정규화
 # ============================================================
 
 def normalize_vlm_analysis(
     analysis: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    VLM의 분석 결과를 Aggregator가 안정적으로 사용할 수 있도록
-    정규화한다.
+    VLM 결과를 Aggregator가 안정적으로
+    처리할 수 있도록 정규화한다.
 
-    주요 기능:
+    주요 기능
     1. 합쳐진 risk_type 분리
-    2. 잘못된 위험 유형 제거
-    3. workers의 NOT_WEARING 결과를 NO_HELMET으로 보완
+    2. confidence 값 정리
+    3. workers의 NOT_WEARING을
+       NO_HELMET 위험으로 보완
     """
 
     normalized_hazards = []
 
     # --------------------------------------------------------
-    # 1. 기존 hazards 정규화
+    # 기존 hazards 정규화
     # --------------------------------------------------------
 
     for hazard in analysis.get(
@@ -110,6 +113,9 @@ def normalize_vlm_analysis(
             raw_risk_type
         )
 
+        if not risk_types:
+            continue
+
         detected = bool(
             hazard.get(
                 "detected",
@@ -117,11 +123,9 @@ def normalize_vlm_analysis(
             )
         )
 
-        confidence = (
-            hazard.get(
-                "confidence",
-                "LOW"
-            )
+        confidence = hazard.get(
+            "confidence",
+            "LOW"
         )
 
         if confidence not in {
@@ -158,7 +162,7 @@ def normalize_vlm_analysis(
             )
 
     # --------------------------------------------------------
-    # 2. 작업자 PPE 결과에서 NO_HELMET 보완
+    # worker 정보로 NO_HELMET 보완
     # --------------------------------------------------------
 
     for worker in analysis.get(
@@ -200,7 +204,7 @@ def normalize_vlm_analysis(
         )
 
     # --------------------------------------------------------
-    # 3. 중복 제거
+    # 중복 제거
     # --------------------------------------------------------
 
     unique_hazards = []
@@ -241,7 +245,12 @@ def build_search_query(
     hazard: dict[str, Any],
 ) -> str:
     """
-    Aggregator 결과를 RAG 검색에 적합한 한국어 문장으로 만든다.
+    위험 결과를 법령 검색용 문장으로 변환한다.
+
+    [RISK_TYPE=...] 마커는 regulation_retriever가
+    위험 유형을 정확하게 식별하기 위한 내부 값이다.
+
+    실제 임베딩 생성 전에는 자동 제거된다.
     """
 
     risk_type = hazard.get(
@@ -249,11 +258,12 @@ def build_search_query(
         ""
     )
 
-    base_query = (
-        SEARCH_QUERY_MAP.get(
-            risk_type,
-            ""
-        )
+    if risk_type not in VALID_RISK_TYPES:
+        return ""
+
+    base_query = SEARCH_QUERY_MAP.get(
+        risk_type,
+        ""
     )
 
     evidence = hazard.get(
@@ -269,28 +279,37 @@ def build_search_query(
             evidence
         ]
 
+    elif isinstance(
+        evidence,
+        list
+    ):
+        evidence_list = evidence
+
     else:
-        evidence_list = (
-            evidence
-            if isinstance(
-                evidence,
-                list
-            )
-            else []
-        )
+        evidence_list = []
 
     evidence_text = " ".join(
-        str(item)
+        str(item).strip()
         for item in evidence_list[:3]
-        if item
+        if str(item).strip()
+    )
+
+    # regulation_retriever에서 이 마커로
+    # 위험 유형을 정확하게 알아낸다.
+    marker = (
+        f"[RISK_TYPE={risk_type}]"
     )
 
     if evidence_text:
 
         return (
+            f"{marker} "
             f"{base_query}. "
             f"현장 관찰 근거: "
             f"{evidence_text}"
         )
 
-    return base_query
+    return (
+        f"{marker} "
+        f"{base_query}"
+    )

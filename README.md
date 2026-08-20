@@ -6,3 +6,6 @@ python scripts/build_vector_db.py
 
 # 파이프라인 실행
 python -m app.pipeline
+
+# 영상자료 위치
+vlm-workspace\data\videos\test.mp4
