@@ -49,7 +49,7 @@ def load_images(folder: str, n: int) -> list[tuple[str, bytes]]:
     return [(p.name, p.read_bytes()) for p in paths]
 
 
-async def run_direct(client: OllamaClient, model: str, img: bytes, prompt: str) -> dict:
+async def run_direct(client: OllamaClient, model: str, img: bytes, prompt: str, *, debug_json: bool = False) -> dict:
     t0 = time.perf_counter()
     try:
         obj, timing = await client.chat_json(img, prompt, INTERNAL_JSON_SCHEMA, model=model)
@@ -59,6 +59,8 @@ async def run_direct(client: OllamaClient, model: str, img: bytes, prompt: str) 
             valid = True
         except Exception:
             valid = False
+        if debug_json:
+            print(f"\n[json {model}]\n{json.dumps(obj, ensure_ascii=False, indent=2)}")
         return {"ok": True, "schema_valid": valid, "wall_ms": wall, **timing.as_dict()}
     except Exception as e:
         return {
@@ -117,6 +119,7 @@ async def bench(args) -> list[dict]:
         num_ctx=cfg.num_ctx,
         num_predict=cfg.num_predict,
         temperature=cfg.temperature,
+        think=cfg.think,
     )
     api_client = httpx.AsyncClient(timeout=180) if args.via_api else None
 
@@ -142,7 +145,7 @@ async def bench(args) -> list[dict]:
                             assert api_client is not None
                             result = await run_via_api(api_client, args.via_api, img, prompt, args.key)
                         else:
-                            result = await run_direct(client, model, img, prompt)
+                            result = await run_direct(client, model, img, prompt, debug_json=args.debug_json)
                         result["image"] = name
                         result["px"] = "x".join(map(str, dims(img)))
                         samples.append(result)
@@ -231,6 +234,7 @@ def main():
     ap.add_argument("--via-api", default="", help="local node URL for end-to-end measurement")
     ap.add_argument("--key", default="", help="X-Local-Key")
     ap.add_argument("--keep-loaded", action="store_true", help="do not unload model between runs")
+    ap.add_argument("--debug-json", action="store_true", help="print the parsed JSON payload for each successful response")
     ap.add_argument("--out", default="bench_latency.csv")
     args = ap.parse_args()
 
