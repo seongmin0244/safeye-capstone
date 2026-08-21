@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,15 +31,30 @@ public class LocalFileStorageService implements FileStorageService {
       "video/quicktime");
   private static final List<String> ALLOWED_VIDEO_EXTS = List.of("mp4", "avi", "mov");
 
+  @Value("${app.upload.max-image-size}")
+  private long maxImageSize;
+
+  @Value("${app.upload.max-video-size}")
+  private long maxVideoSize;
 
   @Override
   public String storeFile(MultipartFile file) {
     if (file == null || file.isEmpty()) {
-      log.warn("파일 업로드 실패 - 파일이 비어있음");
+      log.warn("파일 업로드 실패: 파일이 비어있음");
       throw new BusinessException(FileErrorCode.EMPTY_FILE_UPLOADED);
     }
 
     String fileType = validateAndGetFileType(file);
+    long fileSize = file.getSize();
+
+    if (fileType.equals("image") && fileSize > maxImageSize) {
+      log.warn("이미지 용량 초과 - 제한: {} bytes, 실제: {} bytes", maxImageSize, fileSize);
+      throw new BusinessException(FileErrorCode.FILE_SIZE_EXCEEDED, Map.of("limit", maxImageSize, "actual", fileSize));
+    }
+    if (fileType.equals("video") && fileSize > maxVideoSize) {
+      log.warn("영상 용량 초과 - 제한: {} bytes, 실제: {} bytes", maxVideoSize, fileSize);
+      throw new BusinessException(FileErrorCode.FILE_SIZE_EXCEEDED, Map.of("limit", maxVideoSize, "actual", fileSize));
+    }
 
     String originalFilename = file.getOriginalFilename();
     String extension = originalFilename.substring(originalFilename.lastIndexOf(".") + 1)
