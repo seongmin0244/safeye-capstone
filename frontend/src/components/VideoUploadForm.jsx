@@ -1,12 +1,13 @@
 import { useState, useRef } from "react";
 import { DEV_ZONE_ID, UPLOAD_VIDEO_ENDPOINT, MAX_VIDEO_SIZE_MB } from "../constants/config";
-
+import { getApiErrorMessage } from "../utils/apiError";
 
 function VideoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [fileError, setFileError] = useState(null);
 
   const fileInputRef = useRef(null);
@@ -63,7 +64,7 @@ function VideoUploadForm() {
       const json = await response.json();
 
       if(!response.ok || !json.success) {
-        throw new Error(json.error?.message ?? "업로드 실패");
+        throw new Error(getApiErrorMessage(json, "업로드 실패"));
       }
 
       const data = json.data;
@@ -71,6 +72,7 @@ function VideoUploadForm() {
       setUploadStatus("success");
     } catch (error) {
       console.error("전송 실패:", error);
+      setErrorMessage(error.mesage);
       setUploadStatus("error");
     } finally {
       setUploading(false);
@@ -140,7 +142,7 @@ function VideoUploadForm() {
       )}
       {uploadStatus === "error" && (
         <p className="text-danger text-sm font-semibold mt-2">
-          업로드 실패. 다시 시도해보세요.
+          {errorMessage ?? "업로드 실패. 다시 시도해주세요."}
         </p>
       )}
     </form>

@@ -11,4 +11,4 @@ export const UPLOAD_IMAGE_ENDPOINT = "/api/upload/file";
 export const UPLOAD_VIDEO_ENDPOINT = "/api/upload/file";
 
 export const MAX_IMAGE_SIZE_MB = 10;
-export const MAX_VIDEO_SIZE_MB = 100;
+export const MAX_VIDEO_SIZE_MB = 50;
