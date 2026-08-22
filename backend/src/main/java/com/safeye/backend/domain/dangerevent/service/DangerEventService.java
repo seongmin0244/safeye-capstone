@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class DangerEventService {
 
   private final DangerEventRepository dangerEventRepository;
@@ -25,7 +24,6 @@ public class DangerEventService {
   private final WorkZoneService workZoneService;
   private final VlmApiService vlmApiService;
 
-  @Transactional
   public DangerEventDto createDangerEvent(DangerEventUploadRequest request) {
     WorkZone workZone = workZoneService.getWorkZoneById(request.zoneId());
 

@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WorkZoneRepository extends JpaRepository<WorkZone, UUID> {
 
+  boolean existsByZoneName(String zoneName);
 }
