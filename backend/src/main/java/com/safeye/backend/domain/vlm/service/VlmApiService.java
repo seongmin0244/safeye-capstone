@@ -3,7 +3,10 @@ package com.safeye.backend.domain.vlm.service;
 import com.safeye.backend.domain.vlm.dto.response.VlmResponseDto;
 import com.safeye.backend.global.error.BusinessException;
 import com.safeye.backend.global.error.GlobalErrorCode;
+import io.netty.handler.timeout.ReadTimeoutException;
+import io.netty.handler.timeout.WriteTimeoutException;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +76,15 @@ public class VlmApiService {
         .bodyToMono(VlmResponseDto.class)
 
         .onErrorResume(WebClientRequestException.class, e -> {
-          log.error("VLM 서버 물리적 연결 실패 (네트워크/서버다운): {}", e.getMessage());
+          Throwable cause = e.getCause();
+
+          if (cause instanceof ConnectException) {
+            log.error("VLM 연결 실패: VLM 서버 다운 또는 네트워크 연결 거부 - cause: {}", cause.getMessage());
+          } else if (cause instanceof ReadTimeoutException || cause instanceof WriteTimeoutException) {
+            log.error("VLM 타임아웃: VLM 서버 연산 시간 초과 - cause: {}", cause.getMessage());
+          } else {
+            log.error("VLM 요청 실패: 기타 물리적 통신 오류 발생 - cause: {}", cause.getMessage());
+          }
           return Mono.error(new BusinessException(GlobalErrorCode.VLM_SERVER_ERROR));
         })
 
