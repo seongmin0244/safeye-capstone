@@ -245,3 +245,7 @@ vlm-workspace/data/rag/sync/*
 *.tar.gz
 *.rar
 *.7z
+
+# 로컬 테스트 영상
+# 프로젝트 영상 폴더 전체 제외
+vlm-workspace/data/videos/
