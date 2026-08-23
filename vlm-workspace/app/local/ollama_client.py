@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 import time
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from app.local.config import (
 
 
 # ============================================================
-# 기본 설정
+# 기본 경로 / 설정
 # ============================================================
 
 BASE_DIR = (
@@ -34,47 +35,68 @@ OLLAMA_URL = (
     "http://127.0.0.1:11434/api/generate"
 )
 
-
-# VLM에 전달할 이미지의 최대 한 변
 MAX_IMAGE_SIDE = 1280
-
 JPEG_QUALITY = 90
 
 
 # ============================================================
-# 추가 출력 제한 프롬프트
+# 기본 출력 제약
 # ============================================================
 
 OUTPUT_CONSTRAINTS = """
-[출력 언어 규칙]
+[출력 규칙]
 
-- 모든 자연어 설명은 반드시 한국어로 작성하세요.
-- position은 한국어로 작성하세요.
-- observations는 한국어로 작성하세요.
-- evidence는 한국어로 작성하세요.
-- scene_description은 한국어로 작성하세요.
-- 자연어 설명을 영어 또는 중국어로 작성하지 마세요.
-- 여러 언어를 혼용하지 마세요.
+- 반드시 하나의 유효한 JSON 객체만 반환하세요.
+- JSON 외부에 설명을 작성하지 마세요.
+- Markdown을 사용하지 마세요.
+- 동일한 문장이나 표현을 반복해서 생성하지 마세요.
 
-다음 JSON enum 값은 반드시 영어 원문 그대로 유지하세요:
-- WEARING
-- NOT_WEARING
-- UNCERTAIN
-- NO_HELMET
-- FALL_HAZARD
-- BLOCKED_PATH
-- LOW
-- MEDIUM
-- HIGH
+[출력 언어]
 
-중요:
-- 위 언어 규칙 외에는 기존 분석 내용, 판단 기준, 설명 수준을 변경하지 마세요.
-- 기존 프롬프트에서 요구하는 정보를 생략하거나 축약하지 마세요.
+- position, observations, evidence, scene_description 등
+  모든 자연어 설명은 반드시 한국어로 작성하세요.
+- 자연어 설명에 영어 또는 중국어를 사용하거나
+  여러 언어를 혼용하지 마세요.
+- JSON key와 enum 값은 지정된 형식을 그대로 유지하세요.
+- 이 규칙은 출력 언어에만 적용하며,
+  기존 분석 내용과 판단 근거의 상세도를
+  생략하거나 축약하지 마세요.
 """
 
 
 # ============================================================
-# JSON Schema
+# 언어 검증 실패 시 재시도용 추가 지시
+# ============================================================
+
+LANGUAGE_RETRY_INSTRUCTION = """
+[언어 검증 실패 - 재출력 지시]
+
+이전 응답의 자연어 필드에 영어 또는 중국어가 포함되었습니다.
+
+이미지에 대한 분석 기준과 판단 내용의 상세도는 그대로 유지하세요.
+분석 내용을 축약하거나 단순화하지 마세요.
+
+단, 다음 자연어 필드만 반드시 한국어로 작성하세요.
+
+- position
+- observations
+- evidence
+- scene_description
+
+JSON key와 enum 값은 기존 영어 형식을 그대로 유지하세요.
+
+예:
+"position": "고소 작업발판 가장자리에서 작업 중"
+
+잘못된 예:
+"position": "WORKING_ON_HIGH_STRUCTURE"
+
+JSON 객체 하나만 다시 반환하세요.
+"""
+
+
+# ============================================================
+# VLM JSON Schema
 # ============================================================
 
 VLM_SCHEMA = {
@@ -119,6 +141,30 @@ VLM_SCHEMA = {
                         ],
                     },
 
+                    "harness": {
+
+                        "type": "string",
+
+                        "enum": [
+                            "CONNECTED",
+                            "WORN_NOT_CONNECTED",
+                            "NOT_WEARING",
+                            "UNCERTAIN",
+                            "NOT_APPLICABLE",
+                        ],
+                    },
+
+                    "work_level": {
+
+                        "type": "string",
+
+                        "enum": [
+                            "GROUND",
+                            "ELEVATED",
+                            "UNCERTAIN",
+                        ],
+                    },
+
                     "position": {
                         "type": "string"
                     },
@@ -137,6 +183,8 @@ VLM_SCHEMA = {
                     "worker_id",
                     "helmet",
                     "vest",
+                    "harness",
+                    "work_level",
                     "position",
                     "observations",
                 ],
@@ -162,6 +210,7 @@ VLM_SCHEMA = {
 
                         "enum": [
                             "NO_HELMET",
+                            "UNFASTENED_SAFETY_HARNESS",
                             "FALL_HAZARD",
                             "BLOCKED_PATH",
                         ],
@@ -182,6 +231,18 @@ VLM_SCHEMA = {
                         ],
                     },
 
+                    "proximity": {
+
+                        "type": "string",
+
+                        "enum": [
+                            "IMMEDIATE",
+                            "NEAR",
+                            "NOT_NEAR",
+                            "UNCERTAIN",
+                        ],
+                    },
+
                     "evidence": {
                         "type": "string"
                     },
@@ -191,6 +252,7 @@ VLM_SCHEMA = {
                     "risk_type",
                     "detected",
                     "confidence",
+                    "proximity",
                     "evidence",
                 ],
 
@@ -215,7 +277,17 @@ VLM_SCHEMA = {
 
 
 # ============================================================
-# 프롬프트 로드
+# 언어 검증 전용 예외
+# ============================================================
+
+class LanguageValidationError(
+    RuntimeError
+):
+    pass
+
+
+# ============================================================
+# Prompt 로드
 # ============================================================
 
 def load_video_prompt() -> str:
@@ -245,7 +317,7 @@ def load_video_prompt() -> str:
 
 
 # ============================================================
-# 이미지 검증
+# 이미지 파일 검증
 # ============================================================
 
 def validate_image(
@@ -286,19 +358,12 @@ def validate_image(
 
 
 # ============================================================
-# VLM 입력용 이미지 전처리
+# 이미지 전처리
 # ============================================================
 
 def prepare_image_base64(
     image_path: Path,
 ) -> str:
-    """
-    원본 프레임을 직접 전송하지 않고
-    OpenCV로 다시 읽어서 VLM용 JPEG로 변환한다.
-
-    큰 이미지는 최대 1280px까지 자동 축소한다.
-    원본 프레임 파일 자체는 변경하지 않는다.
-    """
 
     image = cv2.imread(
         str(image_path)
@@ -319,10 +384,6 @@ def prepare_image_base64(
         width,
         height,
     )
-
-    # --------------------------------------------------------
-    # 이미지 크기 축소
-    # --------------------------------------------------------
 
     if max_side > MAX_IMAGE_SIDE:
 
@@ -363,10 +424,6 @@ def prepare_image_base64(
             f"→ "
             f"{new_width}x{new_height}"
         )
-
-    # --------------------------------------------------------
-    # JPEG 재인코딩
-    # --------------------------------------------------------
 
     success, encoded = (
         cv2.imencode(
@@ -412,7 +469,6 @@ def remove_markdown_fence(
     lines = content.splitlines()
 
     if lines:
-
         lines = lines[1:]
 
     if (
@@ -429,7 +485,7 @@ def remove_markdown_fence(
 
 
 # ============================================================
-# JSON 파싱
+# JSON Parsing
 # ============================================================
 
 def parse_json_response(
@@ -475,6 +531,254 @@ def parse_json_response(
 
 
 # ============================================================
+# Worker ID 정규화
+#
+# VLM이 임의의 큰 숫자를 생성하더라도
+# 작업자 배열 순서대로 1, 2, 3...으로 재부여한다.
+# ============================================================
+
+def normalize_worker_ids(
+    analysis: dict,
+) -> dict:
+
+    workers = analysis.get(
+        "workers",
+        []
+    )
+
+    for worker_id, worker in enumerate(
+        workers,
+        start=1,
+    ):
+
+        worker[
+            "worker_id"
+        ] = worker_id
+
+    return analysis
+
+
+# ============================================================
+# 자연어 필드 추출
+# ============================================================
+
+def collect_natural_language_fields(
+    analysis: dict,
+) -> list[
+    tuple[str, str]
+]:
+
+    fields = []
+
+    scene_description = analysis.get(
+        "scene_description",
+        ""
+    )
+
+    if scene_description:
+
+        fields.append(
+            (
+                "scene_description",
+                str(
+                    scene_description
+                ),
+            )
+        )
+
+    for index, worker in enumerate(
+        analysis.get(
+            "workers",
+            []
+        )
+    ):
+
+        position = worker.get(
+            "position",
+            ""
+        )
+
+        if position:
+
+            fields.append(
+                (
+                    f"workers[{index}].position",
+                    str(
+                        position
+                    ),
+                )
+            )
+
+        observations = worker.get(
+            "observations",
+            []
+        )
+
+        for (
+            obs_index,
+            observation,
+        ) in enumerate(
+            observations
+        ):
+
+            if observation:
+
+                fields.append(
+                    (
+                        (
+                            f"workers[{index}]"
+                            f".observations[{obs_index}]"
+                        ),
+                        str(
+                            observation
+                        ),
+                    )
+                )
+
+    for index, hazard in enumerate(
+        analysis.get(
+            "hazards",
+            []
+        )
+    ):
+
+        evidence = hazard.get(
+            "evidence",
+            ""
+        )
+
+        if evidence:
+
+            fields.append(
+                (
+                    f"hazards[{index}].evidence",
+                    str(
+                        evidence
+                    ),
+                )
+            )
+
+    return fields
+
+
+# ============================================================
+# 자연어 언어 검사
+# ============================================================
+
+def is_invalid_natural_language(
+    text: str,
+) -> bool:
+
+    text = str(
+        text
+    ).strip()
+
+    if not text:
+
+        return False
+
+    # 중국어 / 한자
+    if re.search(
+        r"[\u4e00-\u9fff]",
+        text,
+    ):
+
+        return True
+
+    # WORKING_ON_HIGH_STRUCTURE 같은
+    # 영어 enum 스타일 표현
+    if re.search(
+        r"\b[A-Z]{2,}"
+        r"(?:_[A-Z]{2,})+\b",
+        text,
+    ):
+
+        return True
+
+    english_words = re.findall(
+        r"\b[A-Za-z]{2,}\b",
+        text,
+    )
+
+    hangul_chars = re.findall(
+        r"[가-힣]",
+        text,
+    )
+
+    # 한글이 전혀 없고 영단어가 2개 이상
+    if (
+        len(hangul_chars) == 0
+        and len(english_words) >= 2
+    ):
+
+        return True
+
+    # 한글 문장에 긴 영어 문장이 섞임
+    if len(english_words) >= 4:
+
+        return True
+
+    return False
+
+
+# ============================================================
+# 한국어 출력 검증
+# ============================================================
+
+def validate_korean_output(
+    analysis: dict,
+) -> None:
+
+    invalid_fields = []
+
+    fields = (
+        collect_natural_language_fields(
+            analysis
+        )
+    )
+
+    for (
+        field_name,
+        text,
+    ) in fields:
+
+        if is_invalid_natural_language(
+            text
+        ):
+
+            invalid_fields.append(
+                (
+                    field_name,
+                    text,
+                )
+            )
+
+    if not invalid_fields:
+
+        return
+
+    print()
+    print(
+        "=== 출력 언어 검증 실패 ==="
+    )
+
+    for (
+        field_name,
+        text,
+    ) in invalid_fields:
+
+        print(
+            f"- {field_name}: "
+            f"{text[:120]}"
+        )
+
+    raise LanguageValidationError(
+        "자연어 필드에 영어 또는 중국어가 "
+        "포함되어 있습니다."
+    )
+
+
+# ============================================================
 # Ollama 요청
 # ============================================================
 
@@ -484,10 +788,6 @@ def request_ollama(
     prompt: str,
     attempt: int,
 ) -> dict:
-    """
-    재시도 횟수에 따라 repeat_penalty를
-    조금씩 증가시켜 반복 생성 가능성을 낮춘다.
-    """
 
     repeat_penalty = (
         1.15
@@ -532,12 +832,9 @@ def request_ollama(
             "temperature":
                 temperature,
 
-            # 정상적인 JSON이면 충분한 크기.
-            # 무한 반복을 2048까지 허용하지 않는다.
             "num_predict":
                 1200,
 
-            # 반복 억제
             "repeat_penalty":
                 repeat_penalty,
 
@@ -594,12 +891,6 @@ def analyze_image(
             load_video_prompt()
         )
 
-    # --------------------------------------------------------
-    # 이미지 리사이즈 + JPEG 재인코딩
-    #
-    # 모든 retry에서 동일한 전처리 이미지를 사용
-    # --------------------------------------------------------
-
     image_base64 = (
         prepare_image_base64(
             image_path
@@ -608,9 +899,7 @@ def analyze_image(
 
     last_error = None
 
-    # ========================================================
-    # 재시도
-    # ========================================================
+    language_retry_required = False
 
     for attempt in range(
         1,
@@ -619,10 +908,26 @@ def analyze_image(
 
         try:
 
+            request_prompt = prompt
+
+            if language_retry_required:
+
+                request_prompt = (
+                    prompt
+                    + "\n\n"
+                    + LANGUAGE_RETRY_INSTRUCTION
+                )
+
+                print(
+                    "[언어 재시도] "
+                    "분석 내용은 유지하고 "
+                    "자연어 필드만 한국어로 재생성합니다."
+                )
+
             data = request_ollama(
                 image_path=image_path,
                 image_base64=image_base64,
-                prompt=prompt,
+                prompt=request_prompt,
                 attempt=attempt,
             )
 
@@ -646,7 +951,7 @@ def analyze_image(
             )
 
             # ------------------------------------------------
-            # Ollama 비정상 빈 응답
+            # 빈 응답 검사
             # ------------------------------------------------
 
             if (
@@ -660,7 +965,7 @@ def analyze_image(
                 )
 
             # ------------------------------------------------
-            # 정상 종료되지 않음
+            # 정상 종료 검사
             # ------------------------------------------------
 
             if not done:
@@ -672,32 +977,18 @@ def analyze_image(
                 )
 
             # ------------------------------------------------
-            # 출력 길이 한도 도달
+            # 출력 길이 제한
             # ------------------------------------------------
 
             if done_reason == "length":
 
-                print()
-                print(
-                    "[경고] 모델 출력이 "
-                    "길이 제한에 도달했습니다."
-                )
-
-                print(
-                    "응답 마지막 300자:"
-                )
-
-                print(
-                    content[-300:]
-                )
-
                 raise RuntimeError(
-                    "VLM 응답이 반복되거나 "
-                    "너무 길어 출력 제한에 도달했습니다."
+                    "VLM 응답이 출력 길이 제한에 "
+                    "도달했습니다."
                 )
 
             # ------------------------------------------------
-            # JSON 검증
+            # JSON Parsing
             # ------------------------------------------------
 
             parsed = (
@@ -707,7 +998,28 @@ def analyze_image(
             )
 
             # ------------------------------------------------
-            # 정상 반환
+            # Worker ID 정규화
+            #
+            # 모델이 생성한 worker_id는 신뢰하지 않고
+            # 배열 순서대로 1부터 다시 부여한다.
+            # ------------------------------------------------
+
+            parsed = (
+                normalize_worker_ids(
+                    parsed
+                )
+            )
+
+            # ------------------------------------------------
+            # 자연어 한국어 검증
+            # ------------------------------------------------
+
+            validate_korean_output(
+                parsed
+            )
+
+            # ------------------------------------------------
+            # 정상 결과 반환
             # ------------------------------------------------
 
             return json.dumps(
@@ -715,6 +1027,32 @@ def analyze_image(
                 ensure_ascii=False,
                 indent=2,
             )
+
+        except LanguageValidationError as error:
+
+            last_error = error
+
+            language_retry_required = True
+
+            print()
+            print(
+                f"[재시도] "
+                f"{image_path.name} "
+                f"{attempt}/{max_retries}"
+            )
+
+            print(
+                f"원인: {error}"
+            )
+
+            if attempt < max_retries:
+
+                print(
+                    "한국어 출력 규칙을 강화하여 "
+                    "3초 후 다시 시도합니다..."
+                )
+
+                time.sleep(3)
 
         except Exception as error:
 
@@ -738,10 +1076,6 @@ def analyze_image(
                 )
 
                 time.sleep(3)
-
-    # ========================================================
-    # 모든 재시도 실패
-    # ========================================================
 
     raise RuntimeError(
         f"{image_path.name} "

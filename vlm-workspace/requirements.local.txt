@@ -1,8 +1,13 @@
 fastapi
 uvicorn
-ollama
+python-multipart
+
+requests
 opencv-python
 pydantic>=2
+
+# Ollama
+ollama
 
 # RAG
 chromadb==1.5.9
