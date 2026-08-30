@@ -1,52 +1,78 @@
 import { useState, useRef } from "react";
+import { DEV_ZONE_ID, UPLOAD_IMAGE_ENDPOINT, MAX_IMAGE_SIZE_MB } from "../constants/config";
+import { getApiErrorMessage } from "../utils/apiError";
 
 function PhotoUploadForm() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null); // "success" | "error" | null
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [fileError, setFileError] = useState(null);
 
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    setSelectedFile(file);
     setUploadStatus(null);
 
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-    } else {
+    if (!file) {
+      setSelectedFile(null);
       setPreviewUrl(null);
+      return
     }
+
+    const sizeMB = file.size / (1024*1024);
+    
+    if (sizeMB > MAX_IMAGE_SIZE_MB) {
+      setFileError(`파일이 너무 큽니다 (${sizeMB.toFixed(1)}MB). ${MAX_IMAGE_SIZE_MB}MB 이하만 가능합니다.`,);
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      return;
+    }
+
+    setFileError(null);
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile) {
-      console.log("파일을 선택해주세요");
-      return;
-    }
+    if (!selectedFile) return;
 
     const formData = new FormData();
-    formData.append("image", selectedFile);
+    formData.append("file", selectedFile);
+    formData.append("zoneId", DEV_ZONE_ID);
 
     setUploading(true);
     setUploadStatus(null);
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/upload`,
+        `${import.meta.env.VITE_API_URL}${UPLOAD_IMAGE_ENDPOINT}`,
         {
           method: "POST",
           body: formData,
         },
       );
-      const result = await response.json();
-      console.log("서버 응답:", result);
+
+      if(response.status === 413) {
+        throw new Error("파일 용량이 서버 제한을 초과했습니다.");
+      }
+
+      const json = await response.json();
+
+      if(!response.ok || !json.success) {
+        throw new Error(getApiErrorMessage(json, "업로드 실패"));
+      }
+
+      const data = json.data;
+      console.log("분석 결과:", data);
       setUploadStatus("success");
+
     } catch (error) {
       console.error("전송 실패:", error);
+      setErrorMessage(error.message);
       setUploadStatus("error");
     } finally {
       setUploading(false);
@@ -62,7 +88,7 @@ function PhotoUploadForm() {
 
       <input
         type="file"
-        accept="image/*"
+        accept=".jpg, .jpeg, .png, .webp"
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
@@ -83,20 +109,21 @@ function PhotoUploadForm() {
             <span className="text-sm font-semibold text-ink">
               클릭하여 이미지 선택
             </span>
-            <span className="text-xs text-muted">JPG, PNG 파일 업로드</span>
+            <span className="text-xs text-muted">JPG, PNG, WEBP • 최대 {MAX_IMAGE_SIZE_MB}MB</span>
           </>
         )}
       </div>
 
       {selectedFile && (
         <p className="text-sm text-muted mb-2">
-          선택된 파일: {selectedFile.name}
+          선택된 파일: {selectedFile.name} ({(selectedFile.size/(1024*1024)).toFixed(1)}MB)
         </p>
       )}
+      {fileError && (<p className="text-danger text-sm font-semibold mt-2">{fileError}</p>)}
 
       <button
         type="submit"
-        disabled={uploading}
+        disabled={uploading || !selectedFile}
         className="w-full mt-4 py-3.5 rounded-[10px] bg-accent text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {uploading ? "업로드 중..." : "제출"}
@@ -107,7 +134,7 @@ function PhotoUploadForm() {
       )}
       {uploadStatus === "error" && (
         <p className="text-danger text-sm font-semibold mt-2">
-          업로드 실패. 다시 시도해주세요.
+          {errorMessage ?? "업로드 실패. 다시 시도해주세요."}
         </p>
       )}
     </form>
