@@ -140,6 +140,7 @@ vlm-workspace/.cache/
 # ============================================================
 
 # 현재 사용 중인 RAG Vector DB
+# regulations.jsonl을 이용해 로컬에서 재구축 가능
 vlm-workspace/data/rag/chroma_db/
 
 # 과거 또는 임시 ChromaDB 경로
@@ -169,6 +170,26 @@ vlm-workspace/data/videos/*
 
 
 # ============================================================
+# API Upload Files
+# ============================================================
+
+vlm-workspace/data/uploads/*
+
+# 폴더 자체는 Git에 유지
+!vlm-workspace/data/uploads/.gitkeep
+
+
+# ============================================================
+# Local Test Images
+# ============================================================
+
+vlm-workspace/data/test_Image/*
+
+# 폴더 자체를 유지하려면 .gitkeep 사용
+!vlm-workspace/data/test_Image/.gitkeep
+
+
+# ============================================================
 # Pipeline Analysis Results
 # ============================================================
 
@@ -178,26 +199,32 @@ vlm-workspace/data/results/*
 !vlm-workspace/data/results/.gitkeep
 
 
-# ============================================================
-# Raw Law Files
-# ============================================================
 
-# HWPX, PDF 등의 법령 원본은 용량이 커질 수 있으므로 제외
-vlm-workspace/data/raw_laws/*
-
-# 폴더 자체는 Git에 유지
-!vlm-workspace/data/raw_laws/.gitkeep
 
 
 # ============================================================
 # Processed Law Files
 # ============================================================
 
-# HWPX에서 추출된 중간 텍스트 파일
+# HWPX에서 추출한 중간 TXT 파일
 vlm-workspace/data/processed/*
 
 # 폴더 자체는 Git에 유지
 !vlm-workspace/data/processed/.gitkeep
+
+
+# ============================================================
+# Parsed RAG Dataset
+# ============================================================
+
+# 중요:
+# 아래 파일은 의도적으로 ignore하지 않는다.
+#
+# vlm-workspace/data/parsed/regulations.jsonl
+#
+# 팀원이 GitHub에서 이 파일을 받아
+# scripts/build_vector_db.py를 실행하면
+# 자신의 로컬 ChromaDB를 구축할 수 있다.
 
 
 # ============================================================
@@ -211,16 +238,10 @@ vlm-workspace/data/rag/sync/*
 
 
 # ============================================================
-# IMPORTANT:
-# Parsed RAG dataset is intentionally NOT ignored.
-#
-# 다음 파일은 GitHub에 업로드 가능:
-#
-# vlm-workspace/data/rag/parsed/regulations.jsonl
-#
-# 팀원이 이 파일을 받아 build_vector_db.py를 실행하여
-# 자신의 로컬 ChromaDB를 구축할 수 있도록 한다.
+# API Test / Runtime Files
 # ============================================================
+
+vlm-workspace/response.json
 
 
 # ============================================================
@@ -232,7 +253,6 @@ vlm-workspace/data/rag/sync/*
 *.bak
 *.swp
 *.swo
-
 *~
 
 
@@ -245,11 +265,3 @@ vlm-workspace/data/rag/sync/*
 *.tar.gz
 *.rar
 *.7z
-
-# 프로젝트 영상 폴더 전체 제외
-vlm-workspace/data/videos/
-vlm-workspace/data/uploads/
-
-# API test/runtime files
-vlm-workspace/response.json
-vlm-workspace/data/uploads/

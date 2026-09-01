@@ -824,10 +824,23 @@ def request_ollama(
         "stream":
             False,
 
+        # Qwen3-VL은 thinking을 지원하며,
+        # thinking이 활성화되면 최종 JSON이 response가 아니라
+        # thinking 필드에 들어가 response가 비어 있을 수 있다.
+        # API 파이프라인에서는 구조화된 JSON 응답만 필요하므로
+        # thinking을 비활성화한다.
+        "think":
+            False,
+
         "keep_alive":
             "10m",
 
         "options": {
+
+            # 긴 video_analysis.txt + 이미지 입력을 처리하기 위해
+            # 기본 4096 context 대신 8192 context를 사용한다.
+            "num_ctx":
+                8192,
 
             "temperature":
                 temperature,
@@ -852,7 +865,12 @@ def request_ollama(
         timeout=300,
     )
 
-    response.raise_for_status()
+    if not response.ok:
+        print()
+        print("=== Ollama HTTP 오류 ===")
+        print(f"status={response.status_code}")
+        print(response.text[:2000])
+        response.raise_for_status()
 
     data = response.json()
 

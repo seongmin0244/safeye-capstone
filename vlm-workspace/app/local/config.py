@@ -17,10 +17,10 @@ VIDEO_ANALYSIS_PROMPT = (
 )
 
 
-# Ollama에서 실제 설치되어 있는 모델
+# Ollama에서 실제 설치되어 있는 기본 모델
 VLM_MODEL = os.getenv(
     "VLM_MODEL",
-    "qwen2.5vl:3b",
+    "qwen3-vl:8b-instruct",
 )
 
 # 몇 초마다 프레임을 추출할지

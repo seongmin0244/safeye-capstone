@@ -48,7 +48,172 @@ COLLECTION_NAMES = [
     "osh_decree",
     "osh_enforcement_rule",
     "osh_safety_rule",
+    "serious_accident_law",
+    "serious_accident_decree",
 ]
+
+
+# 중대재해처벌법 계열 Collection
+SERIOUS_ACCIDENT_COLLECTIONS = {
+    "serious_accident_law",
+    "serious_accident_decree",
+}
+
+
+# 중대재해처벌법/시행령을 우선 검색해야 하는
+# 관리체계·경영책임자 중심 Query 표현.
+#
+# "사업주"처럼 산업안전보건법에도 광범위하게 등장하는
+# 단어 하나만으로는 중대재해처벌법 Query로 판단하지 않는다.
+SERIOUS_ACCIDENT_QUERY_KEYWORDS = [
+    "중대재해",
+    "중대산업재해",
+    "중대시민재해",
+    "경영책임자",
+    "경영책임자등",
+    "안전보건관리체계",
+    "안전보건관리체계 구축",
+    "안전 및 보건 확보의무",
+    "안전보건 확보의무",
+    "안전보건 확보",
+    "유해·위험요인 확인",
+    "유해 위험요인 확인",
+    "유해위험요인 확인",
+    "재해예방에 필요한 인력",
+    "재해예방 인력",
+    "안전보건 예산",
+    "안전보건 관계법령",
+    "도급·용역·위탁",
+    "도급 용역 위탁",
+    "안전보건 목표",
+]
+
+
+# ============================================================
+# 중대재해처벌법 세부 Query -> 핵심 조항 규칙
+# ============================================================
+
+SERIOUS_ACCIDENT_RULES = [
+    {
+        "name": "SAFETY_HEALTH_MANAGEMENT_SYSTEM",
+        "query_keywords": [
+            "안전보건관리체계",
+            "안전보건관리체계 구축",
+            "유해·위험요인 확인",
+            "유해 위험요인 확인",
+            "유해위험요인 확인",
+            "개선 절차",
+            "개선절차",
+            "재해예방에 필요한 인력",
+            "재해예방 인력",
+            "안전보건 예산",
+            "안전보건 목표",
+            "경영방침",
+        ],
+        "targets": [
+            {
+                "collection": "serious_accident_law",
+                "article": "제4조",
+                "bonus": 6.0,
+            },
+            {
+                "collection": "serious_accident_decree",
+                "article": "제4조",
+                "bonus": 7.0,
+            },
+        ],
+    },
+    {
+        "name": "LEGAL_DUTY_MANAGEMENT",
+        "query_keywords": [
+            "안전보건 관계법령",
+            "안전·보건 관계 법령",
+            "안전 보건 관계 법령",
+            "관계 법령",
+            "의무이행",
+            "의무 이행",
+            "반기 1회",
+            "반기 1회 이상",
+            "점검",
+            "교육",
+        ],
+        "targets": [
+            {
+                "collection": "serious_accident_law",
+                "article": "제4조",
+                "bonus": 5.0,
+            },
+            {
+                "collection": "serious_accident_decree",
+                "article": "제5조",
+                "bonus": 7.0,
+            },
+        ],
+    },
+    {
+        "name": "RECURRENCE_PREVENTION",
+        "query_keywords": [
+            "재발방지",
+            "재발 방지",
+            "재발방지 대책",
+            "재발 방지 대책",
+        ],
+        "targets": [
+            {
+                "collection": "serious_accident_law",
+                "article": "제4조",
+                "bonus": 6.0,
+            },
+        ],
+    },
+]
+
+
+# ============================================================
+# 시행령 별표 Query
+# ============================================================
+
+ANNEX_QUERY_PATTERN = re.compile(
+    r"별표(?:\s*[_\-]?\s*(\d+))?"
+)
+
+
+def is_annex_query(
+    query_text: str,
+) -> bool:
+    """
+    Query가 시행령 별표 자체를 찾는 요청인지 확인한다.
+    """
+
+    return (
+        "별표"
+        in query_text
+    )
+
+
+def extract_requested_annex_no(
+    query_text: str,
+) -> str | None:
+    """
+    '별표 4', '별표4'처럼 번호가 명시된 경우
+    metadata 형식인 '별표 4'로 정규화한다.
+    """
+
+    match = ANNEX_QUERY_PATTERN.search(
+        query_text
+    )
+
+    if not match:
+        return None
+
+    number = match.group(1)
+
+    if not number:
+        return None
+
+    return (
+        f"별표 {number}"
+    )
 
 
 # ============================================================
@@ -471,6 +636,400 @@ def extract_risk_type(
 
 
 # ============================================================
+# 중대재해처벌법 관리체계 Query 판정
+# ============================================================
+
+def is_serious_accident_query(
+    query_text: str,
+) -> bool:
+    """
+    단순 현장 위험이 아니라
+    중대재해처벌법의 경영책임자 의무,
+    안전보건관리체계, 인력·예산·점검 등
+    관리체계 중심 질의인지 판정한다.
+    """
+
+    query_lower = query_text.lower()
+
+    return any(
+        keyword.lower() in query_lower
+        for keyword
+        in SERIOUS_ACCIDENT_QUERY_KEYWORDS
+    )
+
+
+# ============================================================
+# 중대재해처벌법 세부 Query 가점 계산
+# ============================================================
+
+def calculate_serious_accident_bonus(
+    candidate: dict[str, Any],
+    query_text: str,
+) -> tuple[float, list[str]]:
+    """
+    관리체계 질의에서 단순히 중대재해처벌법 Collection 전체에
+    동일한 가점을 주지 않고, 실제 핵심 조항에 추가 가점을 준다.
+    """
+
+    query_lower = query_text.lower()
+
+    collection_name = candidate.get(
+        "collection",
+        "",
+    )
+
+    metadata = candidate.get(
+        "metadata",
+        {},
+    )
+
+    article = metadata.get(
+        "article",
+        "",
+    )
+
+    total_bonus = 0.0
+    matched_rules = []
+
+    for rule in SERIOUS_ACCIDENT_RULES:
+
+        query_matches = [
+            keyword
+            for keyword in rule["query_keywords"]
+            if keyword.lower() in query_lower
+        ]
+
+        if not query_matches:
+            continue
+
+        for target in rule["targets"]:
+
+            if (
+                target["collection"] == collection_name
+                and target["article"] == article
+            ):
+
+                multiplier = (
+                    1.0
+                    + (
+                        min(
+                            len(query_matches),
+                            3,
+                        )
+                        - 1
+                    )
+                    * 0.15
+                )
+
+                bonus = (
+                    float(target["bonus"])
+                    * multiplier
+                )
+
+                total_bonus += bonus
+
+                matched_rules.append(
+                    rule["name"]
+                )
+
+    return (
+        total_bonus,
+        list(
+            dict.fromkeys(
+                matched_rules
+            )
+        ),
+    )
+
+
+# ============================================================
+# 중대재해처벌법 핵심 조항 직접 후보 추가
+# ============================================================
+
+def fetch_serious_accident_priority_candidates(
+    query_text: str,
+    query_embedding: list[float],
+) -> list[dict[str, Any]]:
+    """
+    Vector 검색 결과에 핵심 조항이 포함되지 않는 경우를 막기 위해
+    관리체계 Query에서 관련 핵심 조항을 직접 후보군에 추가한다.
+    """
+
+    if not is_serious_accident_query(
+        query_text
+    ):
+
+        return []
+
+    query_lower = query_text.lower()
+
+    target_keys = []
+
+    for rule in SERIOUS_ACCIDENT_RULES:
+
+        if not any(
+            keyword.lower() in query_lower
+            for keyword
+            in rule["query_keywords"]
+        ):
+            continue
+
+        for target in rule["targets"]:
+
+            key = (
+                target["collection"],
+                target["article"],
+            )
+
+            if key not in target_keys:
+
+                target_keys.append(
+                    key
+                )
+
+    # 관리체계 Query인데 세부 규칙이 애매한 경우에도
+    # 법 제4조 / 시행령 제4조를 기본 후보로 포함한다.
+    if not target_keys:
+
+        target_keys = [
+            (
+                "serious_accident_law",
+                "제4조",
+            ),
+            (
+                "serious_accident_decree",
+                "제4조",
+            ),
+        ]
+
+    results = []
+
+    for (
+        collection_name,
+        article,
+    ) in target_keys:
+
+        try:
+
+            collection = client.get_collection(
+                name=collection_name
+            )
+
+            response = collection.get(
+                where={
+                    "article":
+                        article
+                },
+                include=[
+                    "documents",
+                    "metadatas",
+                ],
+            )
+
+        except Exception as error:
+
+            print(
+                f"[RAG 핵심 조항 조회 오류] "
+                f"{collection_name} "
+                f"{article}: "
+                f"{error}"
+            )
+
+            continue
+
+        ids = response.get(
+            "ids",
+            [],
+        ) or []
+
+        documents = response.get(
+            "documents",
+            [],
+        ) or []
+
+        metadatas = response.get(
+            "metadatas",
+            [],
+        ) or []
+
+        for index, item_id in enumerate(ids):
+
+            document = documents[
+                index
+            ]
+
+            document_embedding = (
+                embed_document(
+                    document
+                )
+            )
+
+            distance = cosine_distance(
+                query_embedding,
+                document_embedding,
+            )
+
+            results.append(
+                {
+                    "id":
+                        item_id,
+
+                    "collection":
+                        collection_name,
+
+                    "document":
+                        document,
+
+                    "metadata":
+                        metadatas[index]
+                        or {},
+
+                    "distance":
+                        float(
+                            distance
+                        ),
+
+                    "candidate_source":
+                        "serious_priority",
+                }
+            )
+
+    return results
+
+
+# ============================================================
+# 시행령 별표 후보 직접 추가
+# ============================================================
+
+def fetch_annex_candidates(
+    query_text: str,
+    query_embedding: list[float],
+) -> list[dict[str, Any]]:
+    """
+    Query에 '별표'가 명시된 경우
+    serious_accident_decree Collection에서
+    별표 record를 직접 후보군에 추가한다.
+
+    별표 번호가 있으면 해당 별표만 조회하고,
+    번호가 없으면 전체 별표를 대상으로 Vector distance를 계산한다.
+    """
+
+    if not is_annex_query(
+        query_text
+    ):
+
+        return []
+
+    requested_annex_no = (
+        extract_requested_annex_no(
+            query_text
+        )
+    )
+
+    try:
+
+        collection = (
+            client.get_collection(
+                name="serious_accident_decree"
+            )
+        )
+
+        if requested_annex_no:
+
+            where = {
+                "annex_no":
+                    requested_annex_no
+            }
+
+        else:
+
+            where = {
+                "document_type":
+                    "SERIOUS_ACCIDENT_DECREE_ANNEX"
+            }
+
+        response = collection.get(
+            where=where,
+            include=[
+                "documents",
+                "metadatas",
+            ],
+        )
+
+    except Exception as error:
+
+        print(
+            f"[RAG 별표 조회 오류] "
+            f"{error}"
+        )
+
+        return []
+
+    ids = response.get(
+        "ids",
+        [],
+    ) or []
+
+    documents = response.get(
+        "documents",
+        [],
+    ) or []
+
+    metadatas = response.get(
+        "metadatas",
+        [],
+    ) or []
+
+    results = []
+
+    for index, item_id in enumerate(
+        ids
+    ):
+
+        document = documents[
+            index
+        ]
+
+        document_embedding = (
+            embed_document(
+                document
+            )
+        )
+
+        distance = cosine_distance(
+            query_embedding,
+            document_embedding,
+        )
+
+        results.append(
+            {
+                "id":
+                    item_id,
+
+                "collection":
+                    "serious_accident_decree",
+
+                "document":
+                    document,
+
+                "metadata":
+                    metadatas[index]
+                    or {},
+
+                "distance":
+                    float(
+                        distance
+                    ),
+
+                "candidate_source":
+                    "annex_priority",
+            }
+        )
+
+    return results
+
+
+# ============================================================
 # Query 임베딩
 # ============================================================
 
@@ -776,8 +1335,11 @@ def build_candidate_text(
 
     return (
         f"{metadata.get('law_name', '')} "
+        f"{metadata.get('document_type', '')} "
         f"{metadata.get('article', '')} "
         f"{metadata.get('article_title', '')} "
+        f"{metadata.get('annex_no', '')} "
+        f"{metadata.get('annex_title', '')} "
         f"{candidate.get('document', '')}"
     ).lower()
 
@@ -986,7 +1548,116 @@ def rerank_candidate(
         )
     )
 
+    collection_name = candidate.get(
+        "collection",
+        "",
+    )
+
+    serious_collection = (
+        collection_name
+        in SERIOUS_ACCIDENT_COLLECTIONS
+    )
+
+    serious_query = (
+        is_serious_accident_query(
+            query_text
+        )
+    )
+
+    # ========================================================
+    # Risk marker가 없는 일반 검색
+    #
+    # 중대재해 관리체계 질의라면
+    # 중대재해처벌법/시행령을 우선한다.
+    # ========================================================
+
     if risk_type not in RISK_RULES:
+
+        score = vector_score
+
+        metadata = candidate.get(
+            "metadata",
+            {},
+        )
+
+        annex_no = metadata.get(
+            "annex_no",
+            "",
+        )
+
+        annex_query = (
+            is_annex_query(
+                query_text
+            )
+        )
+
+        requested_annex_no = (
+            extract_requested_annex_no(
+                query_text
+            )
+        )
+
+        collection_adjustment = 0.0
+
+        if (
+            serious_query
+            and serious_collection
+        ):
+
+            collection_adjustment += 2.5
+
+        # ----------------------------------------------------
+        # 별표 Query 조정
+        # ----------------------------------------------------
+
+        annex_bonus = 0.0
+
+        if annex_query:
+
+            # 실제 별표 record를 강하게 우선한다.
+            if annex_no:
+
+                annex_bonus += 6.0
+
+                # "별표 4"처럼 번호까지 명시한 경우
+                # 정확한 별표 번호를 추가 우선한다.
+                if requested_annex_no:
+
+                    if (
+                        annex_no
+                        == requested_annex_no
+                    ):
+
+                        annex_bonus += 8.0
+
+                    else:
+
+                        annex_bonus -= 2.0
+
+            # 별표를 찾는 Query인데 일반 시행령 조문이면 감점
+            elif serious_collection:
+
+                annex_bonus -= 2.0
+
+        score += (
+            collection_adjustment
+            + annex_bonus
+        )
+
+        (
+            serious_bonus,
+            serious_matched_rules,
+        ) = calculate_serious_accident_bonus(
+            candidate,
+            query_text,
+        )
+
+        score += serious_bonus
+
+        priority_target = bool(
+            serious_bonus > 0
+            or annex_bonus > 0
+        )
 
         return {
             **candidate,
@@ -999,11 +1670,14 @@ def rerank_candidate(
 
             "rerank_score":
                 round(
-                    vector_score,
+                    score,
                     6
                 ),
 
             "matched_keywords":
+                [],
+
+            "title_matches":
                 [],
 
             "matched_scenarios":
@@ -1012,11 +1686,45 @@ def rerank_candidate(
             "scenario_bonus":
                 0.0,
 
+            "serious_accident_bonus":
+                round(
+                    serious_bonus,
+                    4
+                ),
+
+            "serious_matched_rules":
+                serious_matched_rules,
+
+            "annex_query":
+                annex_query,
+
+            "requested_annex_no":
+                requested_annex_no
+                or "",
+
+            "annex_bonus":
+                round(
+                    annex_bonus,
+                    4
+                ),
+
+            "penalty_keywords":
+                [],
+
             "priority_target":
-                False,
+                priority_target,
 
             "domain_relevant":
                 True,
+
+            "serious_accident_query":
+                serious_query,
+
+            "collection_adjustment":
+                round(
+                    collection_adjustment,
+                    4
+                ),
         }
 
     rule = RISK_RULES[
@@ -1052,8 +1760,6 @@ def rerank_candidate(
 
     # ========================================================
     # 1. Vector similarity
-    #
-    # 이전보다 비중을 낮춘다.
     # ========================================================
 
     score = (
@@ -1064,12 +1770,6 @@ def rerank_candidate(
 
     # ========================================================
     # 2. Query와 Document 양쪽에 있는 키워드만 가점
-    #
-    # 기존 문제:
-    # 문서 안에 단어가 있기만 해도 점수를 받음
-    #
-    # 수정:
-    # 실제 Query에도 등장해야 가점
     # ========================================================
 
     matched_keywords = []
@@ -1132,12 +1832,6 @@ def rerank_candidate(
 
     # ========================================================
     # 4. 기본 Priority Target
-    #
-    # 이전 +3.0에서 +1.0으로 감소.
-    #
-    # 제42/43/44가 모두 후보군에는 유지되지만
-    # 구체적 상황에 따른 Scenario 점수가
-    # 순위를 결정하게 한다.
     # ========================================================
 
     priority_target = (
@@ -1154,8 +1848,6 @@ def rerank_candidate(
 
     # ========================================================
     # 5. 구체적인 현장 Scenario
-    #
-    # 이번 개선의 핵심.
     # ========================================================
 
     (
@@ -1174,12 +1866,14 @@ def rerank_candidate(
 
     # ========================================================
     # 6. 안전보건기준 규칙 가점
+    #
+    # 이미지에서 직접 탐지한 현장 위험은
+    # 구체적 안전조치 조항이 있는
+    # 산업안전보건기준에 관한 규칙을 우선한다.
     # ========================================================
 
     if (
-        candidate.get(
-            "collection"
-        )
+        collection_name
         == "osh_safety_rule"
     ):
 
@@ -1187,7 +1881,36 @@ def rerank_candidate(
 
 
     # ========================================================
-    # 7. 무관한 분야 감점
+    # 7. 중대재해처벌법 Collection 조정
+    #
+    # FALL_HAZARD / NO_HELMET / BLOCKED_PATH 같은
+    # 개별 현장 위험은 그 자체만으로
+    # 중대재해처벌법 위반이라고 단정할 수 없다.
+    #
+    # 따라서 일반 이미지 위험 Query에서는
+    # 중대재해처벌법 계열을 감점한다.
+    #
+    # 반대로 Query가 안전보건관리체계,
+    # 경영책임자 의무 등 관리체계를 명시하면 가점한다.
+    # ========================================================
+
+    collection_adjustment = 0.0
+
+    if serious_collection:
+
+        if serious_query:
+
+            collection_adjustment += 2.5
+
+        else:
+
+            collection_adjustment -= 2.0
+
+    score += collection_adjustment
+
+
+    # ========================================================
+    # 8. 무관한 분야 감점
     # ========================================================
 
     penalty_keywords = []
@@ -1206,7 +1929,7 @@ def rerank_candidate(
 
 
     # ========================================================
-    # 8. 관련성
+    # 9. 관련성
     # ========================================================
 
     domain_relevant = bool(
@@ -1224,6 +1947,13 @@ def rerank_candidate(
         or
 
         matched_scenarios
+
+        or
+
+        (
+            serious_query
+            and serious_collection
+        )
     )
 
     if not domain_relevant:
@@ -1281,6 +2011,15 @@ def rerank_candidate(
 
         "domain_relevant":
             domain_relevant,
+
+        "serious_accident_query":
+            serious_query,
+
+        "collection_adjustment":
+            round(
+                collection_adjustment,
+                4
+            ),
     }
 
 
@@ -1291,6 +2030,16 @@ def rerank_candidate(
 def remove_duplicates(
     results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """
+    일반 조문은 법령명 + 조문으로 중복 제거한다.
+
+    별표는 article 값이 비어 있으므로
+    기존 방식대로라면 동일 법령의 모든 별표가
+    하나로 합쳐지는 문제가 있다.
+
+    따라서 별표는 법령명 + 별표 번호를 기준으로
+    가장 높은 점수의 chunk 하나만 유지한다.
+    """
 
     seen = set()
 
@@ -1303,20 +2052,57 @@ def remove_duplicates(
             {}
         )
 
-        key = (
-            metadata.get(
-                "law_name"
-            ),
-            metadata.get(
-                "article"
-            ),
+        law_name = metadata.get(
+            "law_name",
+            "",
         )
+
+        article = metadata.get(
+            "article",
+            "",
+        )
+
+        annex_no = metadata.get(
+            "annex_no",
+            "",
+        )
+
+        if article:
+
+            key = (
+                law_name,
+                "article",
+                article,
+            )
+
+        elif annex_no:
+
+            key = (
+                law_name,
+                "annex",
+                annex_no,
+            )
+
+        else:
+
+            # 조문/별표 정보가 없는 예외 record는
+            # Chroma ID까지 포함해 잘못된 중복 제거를 피한다.
+            key = (
+                law_name,
+                "record",
+                result.get(
+                    "id",
+                    "",
+                ),
+            )
 
         if key in seen:
 
             continue
 
-        seen.add(key)
+        seen.add(
+            key
+        )
 
         unique.append(
             result
@@ -1416,6 +2202,27 @@ def search_regulations(
         )
     )
 
+    # 중대재해처벌법 관리체계 Query에서는
+    # 법 제4조, 시행령 제4조/제5조 등 핵심 조항을
+    # Vector Top-K 누락 여부와 상관없이 후보군에 직접 포함한다.
+    candidates.extend(
+
+        fetch_serious_accident_priority_candidates(
+            clean_query,
+            query_embedding,
+        )
+    )
+
+    # Query가 시행령 별표를 명시하면
+    # 별표 record를 직접 후보군에 추가한다.
+    candidates.extend(
+
+        fetch_annex_candidates(
+            clean_query,
+            query_embedding,
+        )
+    )
+
 
     # --------------------------------------------------------
     # 중복 병합
@@ -1463,6 +2270,74 @@ def search_regulations(
             reranked
         )
     )
+
+
+    # --------------------------------------------------------
+    # 별표 번호가 직접 지정된 경우
+    #
+    # 예:
+    # "시행령 별표 4를 찾고 싶다"
+    #
+    # 이 경우 다른 별표나 일반 조문으로 Top-K를 채우지 않고,
+    # 요청한 별표 번호와 정확히 일치하는 결과만 반환한다.
+    #
+    # 반대로:
+    # "시행령의 별표 기준을 찾고 싶다"
+    #
+    # 처럼 번호가 없는 경우에는 기존처럼 여러 별표를
+    # 의미 기반으로 검색한다.
+    # --------------------------------------------------------
+
+    requested_annex_no = (
+        extract_requested_annex_no(
+            clean_query
+        )
+    )
+
+    if requested_annex_no:
+
+        exact_annex_results = [
+
+            result
+
+            for result
+            in reranked
+
+            if (
+                result
+                .get(
+                    "metadata",
+                    {}
+                )
+                .get(
+                    "annex_no",
+                    ""
+                )
+                == requested_annex_no
+            )
+        ]
+
+        if exact_annex_results:
+
+            print(
+                f"[RAG] 별표 번호 직접 지정: "
+                f"{requested_annex_no} "
+                f"-> 해당 별표만 반환"
+            )
+
+            return (
+                exact_annex_results[
+                    :final_top_k
+                ]
+            )
+
+        print(
+            f"[RAG] 요청한 "
+            f"{requested_annex_no}를 "
+            "찾지 못했습니다."
+        )
+
+        return []
 
 
     # --------------------------------------------------------
@@ -1555,16 +2430,42 @@ def print_search_results(
             ""
         )
 
+        annex_no = metadata.get(
+            "annex_no",
+            ""
+        )
+
+        annex_title = metadata.get(
+            "annex_title",
+            ""
+        )
+
         print()
         print(
             f"[{index}] {law_name}"
         )
 
-        print(
-            f"조항: "
-            f"{article} "
-            f"{article_title}"
-        )
+        if article:
+
+            print(
+                f"조항: "
+                f"{article} "
+                f"{article_title}"
+            )
+
+        elif annex_no:
+
+            print(
+                f"별표: "
+                f"{annex_no} "
+                f"{annex_title}"
+            )
+
+        else:
+
+            print(
+                "조항/별표: 정보 없음"
+            )
 
         print(
             f"Collection: "
@@ -1641,6 +2542,99 @@ def print_search_results(
                 f"+{result.get('scenario_bonus', 0):.2f}"
             )
 
+
+        collection_adjustment = (
+            result.get(
+                "collection_adjustment",
+                0.0,
+            )
+        )
+
+        if collection_adjustment:
+
+            sign = (
+                "+"
+                if collection_adjustment > 0
+                else ""
+            )
+
+            print(
+                "Collection 조정: "
+                f"{sign}"
+                f"{collection_adjustment:.2f}"
+            )
+
+        if result.get(
+            "serious_accident_query",
+            False
+        ):
+
+            print(
+                "중대재해 관리체계 Query: YES"
+            )
+
+        serious_rules = (
+            result.get(
+                "serious_matched_rules",
+                []
+            )
+        )
+
+        if serious_rules:
+
+            print(
+                "중대재해 핵심 조항 매칭: "
+                + ", ".join(
+                    serious_rules
+                )
+            )
+
+            print(
+                f"중대재해 조항 가점: "
+                f"+{result.get('serious_accident_bonus', 0):.2f}"
+            )
+
+        if result.get(
+            "annex_query",
+            False
+        ):
+
+            print(
+                "시행령 별표 Query: YES"
+            )
+
+            requested_annex_no = (
+                result.get(
+                    "requested_annex_no",
+                    "",
+                )
+            )
+
+            if requested_annex_no:
+
+                print(
+                    f"요청 별표: "
+                    f"{requested_annex_no}"
+                )
+
+            annex_bonus = result.get(
+                "annex_bonus",
+                0.0,
+            )
+
+            if annex_bonus:
+
+                sign = (
+                    "+"
+                    if annex_bonus > 0
+                    else ""
+                )
+
+                print(
+                    f"별표 가점: "
+                    f"{sign}"
+                    f"{annex_bonus:.2f}"
+                )
 
         if result.get(
             "priority_target",
