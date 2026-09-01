@@ -1,0 +1,43 @@
+# Render Blueprint
+
+services:
+  - type: web
+    name: vlm-mock
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: .
+    dockerfilePath: ./deploy/Dockerfile.mock
+    dockerContext: .
+
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+
+    # 목 서버 관련 파일이 바뀔 때만 다시 배포한다.
+    buildFilter:
+      paths:
+        - app/**
+        - deploy/**
+        - requirements.mock.txt
+      ignoredPaths:
+        - notebooks/**
+        - "**/*.md"
+        - "**/*.ipynb"
+
+    envVars:
+      - key: PORT
+        value: "8100"
+      - key: MOCK_LATENCY_MIN
+        value: "1"
+      - key: MOCK_LATENCY_MAX
+        value: "3"
+      - key: MOCK_FAIL_RATE
+        value: "0"
+
+      # 데모 때 항상 같은 결과를 보고 싶으면 Render 대시보드에서 켠다.
+      # - key: MOCK_SCENARIO
+      #   value: "CRITICAL"
+
+      # 외부에 공개할 때 내부 API와 admin API를 잠그고 싶으면 값을 넣는다.
+      # - key: LN_API_KEY
+      #   sync: false

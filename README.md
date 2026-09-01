@@ -1,10 +1,10 @@
-# safEYE-capstone
-산업 현장 위험 상황 맥락 인지를 위한 VLM 및 추론 엔진 (safEYE 관제 시스템)
+# SAFEye-capstone
+산업 현장 위험 상황 맥락 인지를 위한 VLM 및 추론 엔진 (SAFEye 관제 시스템)
 
 
 # 실행 방법
 
-# 전체 파이프라인 실행
+# * 전체 파이프라인 실행(아래 작업 우선) *
 python -m app.pipeline
 
 # 1. VLM 작업폴더 이동

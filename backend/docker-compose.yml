@@ -1,0 +1,36 @@
+services:
+  # 1. 로컬 개발용 DB
+  safeye-db-dev:
+    image: postgres:16-alpine
+    container_name: safeye-postgres-db
+    environment:
+      POSTGRES_DB: safeye_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      TZ: Asia/Seoul
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_safeye_dev_data:/var/lib/postgresql/data
+    restart: always
+
+  # 2. 로컬 테스트용 DB
+  safeye-db-test:
+    image: postgres:16-alpine
+    container_name: safeye-postgres-test
+    environment:
+      POSTGRES_DB: safeye_test
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      TZ: Asia/Seoul
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_safeye_test_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_safeye_dev_data:
+  postgres_safeye_test_data:
+
+# docker compose up -d

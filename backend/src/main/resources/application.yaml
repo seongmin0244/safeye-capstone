@@ -1,3 +1,28 @@
 spring:
-  application:
-    name: backend
+  profiles:
+    active: dev
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+app:
+  upload:
+    max-image-size: 10485760 # 10MB
+    max-video-size: 52428800 # 50MB
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    com.safeye.backend: trace
+
+vlm:
+  server:
+    url: http://localhost:8100
+    timeout: 30 # VLM 통신 타임아웃 (30초)
