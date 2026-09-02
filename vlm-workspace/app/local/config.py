@@ -61,6 +61,7 @@ class LocalSettings:
     num_ctx: int = _int_env("NUM_CTX", 4096)
     num_predict: int = _int_env("NUM_PREDICT", 400)
     temperature: float = _float_env("TEMPERATURE", 0.1)
+    think: bool = _bool_env("THINK", False)
 
     connect_timeout: float = _float_env("CONNECT_TIMEOUT", 3.0)
     read_timeout: float = _float_env("READ_TIMEOUT", 60.0)

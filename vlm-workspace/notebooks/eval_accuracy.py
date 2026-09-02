@@ -143,6 +143,7 @@ async def evaluate(args) -> tuple[dict, list[dict]]:
         num_ctx=cfg.num_ctx,
         num_predict=cfg.num_predict,
         temperature=args.temperature,
+        think=cfg.think,
     )
 
     summary: dict[str, dict] = {}
