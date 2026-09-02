@@ -1,6 +1,8 @@
 package com.safeye.backend.domain.alert.service;
 
 import com.safeye.backend.domain.dangerevent.dto.response.DangerEventDto;
+import com.safeye.backend.domain.dangerevent.event.DangerEventCreatedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -40,6 +42,11 @@ public class AlertSseService {
                 emitters.remove(emitter);
             }
         }
+    }
+
+    @EventListener
+    public void onDangerEventCreated(DangerEventCreatedEvent event) {
+        broadcast(event.dangerEvent());
     }
 
 } //end
