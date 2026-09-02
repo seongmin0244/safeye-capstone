@@ -9,10 +9,10 @@ import com.safeye.backend.domain.vlm.dto.response.VlmResponseDto;
 import com.safeye.backend.domain.vlm.service.VlmApiService;
 import com.safeye.backend.domain.zone.entity.WorkZone;
 import com.safeye.backend.domain.zone.service.WorkZoneService;
+import java.io.File;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -62,5 +62,29 @@ public class DangerEventService {
 
     log.info("위험 이벤트 저장 완료 - dangerEventId: {}", dangerEvent.getId());
     return DangerEventDto.from(dangerEvent);
+  }
+
+  public void processSimulatorDangerEvent(WorkZone workZone, File file, VlmResponseDto vlmResponseDto) {
+    if (!vlmResponseDto.isDanger()) {
+      log.info("정상 상황 감지. DB 적재 스킵 - isDanger: false");
+      return;
+    }
+
+    String mockFileUrl = "http://localhost:8080/uploads/mock/" + file.getName();
+
+    DangerEvent dangerEvent = DangerEvent.createDangerEvent(
+        workZone,
+        vlmResponseDto.severity(),
+        mockFileUrl,
+        vlmResponseDto.vlmDescription(),
+        vlmResponseDto.violatedRegulation(),
+        vlmResponseDto.actionGuide(),
+        null
+    );
+
+    dangerEventRepository.save(dangerEvent);
+    log.info("위험 이벤트 저장 완료 - dangerEventId: {}", dangerEvent.getId());
+
+    // TODO: 추후 SSE 알림 브로드캐스트 로직 추가
   }
 }
