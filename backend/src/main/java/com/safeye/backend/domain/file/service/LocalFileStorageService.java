@@ -24,7 +24,9 @@ public class LocalFileStorageService implements FileStorageService {
   // 허용할 이미지 규격
   private static final List<String> ALLOWED_IMAGE_MIMES = List.of("image/jpeg", "image/png",
       "image/webp");
-  private static final List<String> ALLOWED_IMAGE_EXTS = List.of("jpg", "jpeg", "png", "webp");
+
+  @Value("${app.image.allowed-exts}")
+  private List<String> allowedImageExts;
 
   // 허용할 영상 규격
   private static final List<String> ALLOWED_VIDEO_MIMES = List.of("video/mp4", "video/x-msvideo",
@@ -100,7 +102,7 @@ public class LocalFileStorageService implements FileStorageService {
         .toLowerCase();
 
     if (contentType != null && ALLOWED_IMAGE_MIMES.contains(contentType.toLowerCase())
-        && ALLOWED_IMAGE_EXTS.contains(extension)) {
+        && allowedImageExts.contains(extension)) {
       return "image";
     }
 
