@@ -25,7 +25,7 @@ public class LocalFileStorageService implements FileStorageService {
   private static final List<String> ALLOWED_IMAGE_MIMES = List.of("image/jpeg", "image/png",
       "image/webp");
 
-  @Value("${app.image.allowed-exts}")
+  @Value("${app.image.allowed-exts:jpg,jpeg,png,webp}")
   private List<String> allowedImageExts;
 
   // 허용할 영상 규격

@@ -37,7 +37,7 @@ public class VirtualEdgeSimulator {
   private int currentFileIndex = 0;
   private List<File> mockImages = new ArrayList<>();
 
-  @Value("${app.image.allowed-exts}")
+  @Value("${app.image.allowed-exts:jpg,jpeg,png,webp}")
   private List<String> allowedImageExts;
 
   @PostConstruct

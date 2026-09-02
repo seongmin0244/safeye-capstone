@@ -17,11 +17,7 @@ app:
     max-image-size: 10485760 # 10MB
     max-video-size: 52428800 # 50MB
   image:
-    allowed-exts:
-      - jpg
-      - jpeg
-      - png
-      - webp
+    allowed-exts: jpg, jpeg, png, webp
   simulator:
     push-rate: 6000
     consume-delay: 100

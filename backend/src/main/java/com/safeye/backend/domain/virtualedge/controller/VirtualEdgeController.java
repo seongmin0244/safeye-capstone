@@ -2,7 +2,6 @@ package com.safeye.backend.domain.virtualedge.controller;
 
 import com.safeye.backend.domain.virtualedge.service.VirtualEdgeSimulator;
 import com.safeye.backend.global.common.ApiResponse;
-import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
