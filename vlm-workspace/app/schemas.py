@@ -54,3 +54,9 @@ class VLMResponse(BaseModel):
 
 # Ollama `format=`이나 OpenAI `response_format`에 그대로 넣는 내부 응답 스키마.
 INTERNAL_JSON_SCHEMA = VLMInternal.model_json_schema()
+INTERNAL_JSON_SCHEMA["required"] = list(VLMInternal.model_fields)
+INTERNAL_JSON_SCHEMA["$defs"]["ObservedObject"]["required"] = [
+    "name",
+    "attributes",
+    "location",
+]

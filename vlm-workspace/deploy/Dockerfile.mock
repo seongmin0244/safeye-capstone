@@ -9,7 +9,6 @@ COPY requirements.mock.txt .
 RUN pip install --no-cache-dir -r requirements.mock.txt
 
 COPY app ./app
-COPY scripts ./scripts
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

@@ -6,7 +6,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
-    rootDir: .
+    rootDir: vlm-workspace
     dockerfilePath: ./deploy/Dockerfile.mock
     dockerContext: .
 
@@ -16,11 +16,11 @@ services:
     # 목 서버 관련 파일이 바뀔 때만 다시 배포한다.
     buildFilter:
       paths:
-        - app/**
-        - deploy/**
-        - requirements.mock.txt
+        - vlm-workspace/app/**
+        - vlm-workspace/deploy/**
+        - vlm-workspace/requirements.mock.txt
       ignoredPaths:
-        - notebooks/**
+        - vlm-workspace/notebooks/**
         - "**/*.md"
         - "**/*.ipynb"
 

@@ -54,4 +54,10 @@ public class WorkZoneService {
     return workZoneRepository.findById(zoneId)
         .orElseThrow(() -> new BusinessException(WorkZoneErrorCode.ZONE_NOT_FOUND, Map.of("zoneId", zoneId)));
   }
+
+  public WorkZone getWorkZoneByName(String zoneName) {
+    return workZoneRepository.findByZoneName(zoneName)
+        .orElseThrow(() -> new BusinessException(WorkZoneErrorCode.ZONE_NOT_FOUND,
+            Map.of("zoneName", zoneName)));
+  }
 }
