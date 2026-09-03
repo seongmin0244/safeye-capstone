@@ -1,14 +1,18 @@
-fastapi
-uvicorn
-python-multipart
+# ============================================================
+# safEYE VLM Workspace Dependencies
+# ============================================================
 
-requests
+# FastAPI / Local VLM Node
+fastapi>=0.115
+uvicorn[standard]>=0.32
+httpx>=0.27
+pydantic>=2.9
+python-multipart>=0.0.12
+
+# Image / Video Processing
+pillow>=10.4
 opencv-python
-pydantic>=2
 
-# Ollama
-ollama
-
-# RAG
+# RAG / Vector DB
 chromadb==1.5.9
 sentence-transformers

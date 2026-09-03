@@ -6,6 +6,7 @@
 LN_MODEL=qwen3-vl:8b-instruct
 LN_NUM_CTX=8192
 LN_FRAME_INTERVAL_SEC=2.0
+LN_THINK=false
 
 `.env.local`에 위와 같이 설정할 수 있음.
 """
@@ -82,7 +83,11 @@ def _bool_env(key: str, default: bool) -> bool:
 
 
 def _csv(s: str) -> list[str]:
-    return [x.strip() for x in s.split(",") if x.strip()]
+    return [
+        x.strip()
+        for x in s.split(",")
+        if x.strip()
+    ]
 
 
 _load_env_file()
@@ -94,7 +99,11 @@ _load_env_file()
 
 @dataclass(frozen=True)
 class LocalSettings:
+
+    # --------------------------------------------------------
     # Ollama
+    # --------------------------------------------------------
+
     ollama_base_url: str = _env(
         "OLLAMA_BASE_URL",
         "http://127.0.0.1:11434",
@@ -108,7 +117,8 @@ class LocalSettings:
     # Qwen3-VL 일반 모델:
     #   thinking 필드에 JSON이 들어가고 response가 비는 문제 발생
     #
-    # 따라서 안정적인 구조화 응답을 위해 Instruct 모델 사용
+    # 따라서 실제 테스트에서 안정적으로 동작한
+    # qwen3-vl:8b-instruct를 기본 모델로 사용
     model: str = _env(
         "MODEL",
         "qwen3-vl:8b-instruct",
@@ -119,8 +129,8 @@ class LocalSettings:
         "30m",
     )
 
-    # video_analysis.txt 프롬프트가 기본 4096 context를
-    # 초과할 수 있으므로 8192 사용
+    # 긴 video_analysis.txt 프롬프트가
+    # 기본 4096 context를 초과할 수 있어 8192 사용
     num_ctx: int = _int_env(
         "NUM_CTX",
         8192,
@@ -136,7 +146,19 @@ class LocalSettings:
         0.1,
     )
 
-    # HTTP timeout
+    # Qwen3-VL thinking 비활성화
+    #
+    # 구조화된 JSON이 thinking 쪽으로 들어가고
+    # response가 비는 문제를 방지하기 위해 기본값 False
+    think: bool = _bool_env(
+        "THINK",
+        False,
+    )
+
+    # --------------------------------------------------------
+    # HTTP Timeout
+    # --------------------------------------------------------
+
     connect_timeout: float = _float_env(
         "CONNECT_TIMEOUT",
         3.0,
@@ -147,7 +169,10 @@ class LocalSettings:
         60.0,
     )
 
+    # --------------------------------------------------------
     # Request / Queue
+    # --------------------------------------------------------
+
     concurrency: int = _int_env(
         "CONCURRENCY",
         1,
@@ -158,7 +183,10 @@ class LocalSettings:
         4,
     )
 
-    # Image preprocessing
+    # --------------------------------------------------------
+    # Image Processing
+    # --------------------------------------------------------
+
     max_edge: int = _int_env(
         "MAX_EDGE",
         1024,
@@ -169,13 +197,19 @@ class LocalSettings:
         12 * 1024 * 1024,
     )
 
-    # Video frame extraction
+    # --------------------------------------------------------
+    # Video Processing
+    # --------------------------------------------------------
+
     frame_interval_sec: float = _float_env(
         "FRAME_INTERVAL_SEC",
         2.0,
     )
 
-    # Local FastAPI node
+    # --------------------------------------------------------
+    # Local FastAPI Node
+    # --------------------------------------------------------
+
     host: str = _env(
         "HOST",
         "0.0.0.0",
@@ -196,13 +230,19 @@ class LocalSettings:
         True,
     )
 
-    # JSON response retry
+    # --------------------------------------------------------
+    # JSON Response Retry
+    # --------------------------------------------------------
+
     json_retry: int = _int_env(
         "JSON_RETRY",
         1,
     )
 
-    # Benchmark models
+    # --------------------------------------------------------
+    # Benchmark
+    # --------------------------------------------------------
+
     bench_models: str = _env(
         "BENCH_MODELS",
         (
@@ -220,11 +260,16 @@ class LocalSettings:
 
     @property
     def bench_model_list(self) -> list[str]:
-        return _csv(self.bench_models)
+        return _csv(
+            self.bench_models
+        )
 
     @property
     def bench_edge_list(self) -> list[int]:
-        return [int(x) for x in _csv(self.bench_edges)]
+        return [
+            int(x)
+            for x in _csv(self.bench_edges)
+        ]
 
 
 local_settings = LocalSettings()
@@ -234,12 +279,11 @@ local_settings = LocalSettings()
 # Backward Compatibility
 # ============================================================
 #
-# 기존 코드에서 아래와 같이 import하는 부분이 있을 수 있음.
+# 기존 코드에서 아래와 같이 import하는 부분을 유지하기 위한 alias.
 #
 # from app.local.config import VLM_MODEL
 # from app.local.config import FRAME_INTERVAL_SEC
 #
-# 기존 코드를 깨지 않도록 alias를 유지함.
 # ============================================================
 
 VLM_MODEL = local_settings.model

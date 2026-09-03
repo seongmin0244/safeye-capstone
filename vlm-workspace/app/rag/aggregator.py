@@ -8,6 +8,7 @@ from typing import Any
 
 VALID_RISK_TYPES = {
     "NO_HELMET",
+    "UNFASTENED_SAFETY_HARNESS",
     "FALL_HAZARD",
     "BLOCKED_PATH",
 }
@@ -22,6 +23,7 @@ CONFIDENCE_SCORE = {
 
 MIN_DETECTION_COUNT = {
     "NO_HELMET": 2,
+    "UNFASTENED_SAFETY_HARNESS": 2,
     "FALL_HAZARD": 2,
     "BLOCKED_PATH": 2,
 }
@@ -47,7 +49,7 @@ def normalize_risk_types(
     risk_type: str,
 ) -> list[str]:
     """
-    VLM이 다음처럼 잘못 반환한 경우 대응:
+    VLM이 다음처럼 여러 위험 유형을 한 문자열로 반환한 경우 대응:
 
     FALL_HAZARD | BLOCKED_PATH
 
@@ -87,6 +89,9 @@ def aggregate_frame_results(
 ) -> list[dict[str, Any]]:
     """
     여러 프레임의 hazard 결과를 위험 유형별로 통합한다.
+
+    동일 위험이 일정 개수 이상의 서로 다른 프레임에서
+    반복적으로 탐지된 경우에만 최종 위험으로 확정한다.
     """
 
     buckets = defaultdict(
