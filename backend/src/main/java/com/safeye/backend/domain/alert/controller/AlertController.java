@@ -15,7 +15,7 @@ public class AlertController {
 
     private final AlertSseService alertSseService;
 
-    @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/subscribe", produces = "text/event-stream;charset=UTF-8")
     public SseEmitter subscribe() {
         return alertSseService.subscribe();
     }
