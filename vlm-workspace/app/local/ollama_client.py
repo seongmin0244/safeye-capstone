@@ -78,6 +78,19 @@ def strip_fence(text: str) -> str:
     return _FENCE.sub("", text).strip()
 
 
+def fallback_json_prompt(prompt: str) -> str:
+    """엄격한 schema가 불안정한 VLM을 위해 더 단순한 JSON-전용 프롬프트로 낮춘다."""
+    base = prompt.strip()
+    suffix = (
+        "\nReturn only valid JSON with no markdown, no code fences, "
+        "and no prose. You MUST include every key exactly once: "
+        "observed_objects, spatial_relations, uncertain, hazard_detected, "
+        "hazard_type, severity, reasoning, recommended_actions, references, "
+        "confidence. Use empty arrays when there is no value."
+    )
+    return (base + suffix).strip()
+
+
 class OllamaClient:
     def __init__(
         self,
@@ -90,6 +103,7 @@ class OllamaClient:
         num_ctx: int = 4096,
         num_predict: int = 400,
         temperature: float = 0.1,
+        think: bool | None = False,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -97,6 +111,7 @@ class OllamaClient:
         self.num_ctx = num_ctx
         self.num_predict = num_predict
         self.temperature = temperature
+        self.think = think
         self.connect_timeout = connect_timeout
         self.timeout = httpx.Timeout(
             connect=connect_timeout,
@@ -139,30 +154,93 @@ class OllamaClient:
         model: str | None = None,
         options: dict | None = None,
     ) -> tuple[dict, OllamaTiming]:
-        """이미지 1장과 프롬프트를 보내고 JSON dict와 타이밍을 받는다."""
-        payload = {
-            "model": model or self.model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt,
-                    "images": [base64.b64encode(image_bytes).decode()],
-                }
-            ],
-            "format": json_schema,
-            "stream": False,
-            "keep_alive": self.keep_alive,
-            "options": self._options(options),
-        }
-        body = await self._post("/api/chat", payload)
-        timing = OllamaTiming.from_response(body)
-        content = (body.get("message") or {}).get("content", "")
-        if not content.strip():
-            raise OllamaBadJSON("empty response")
-        try:
-            return json.loads(strip_fence(content)), timing
-        except json.JSONDecodeError as e:
-            raise OllamaBadJSON(f"JSON parse failed: {e} / head={content[:160]!r}") from e
+        """이미지 1장과 프롬프트를 보내고 JSON dict와 타이밍을 받는다.
+
+        일부 VLM 모델은 엄격한 JSON schema를 요구하는 format일 때 빈 응답을
+        반환하는 경우가 있으므로, 실패 시 한 번만 일반 JSON 모드로 재시도한다.
+        """
+        attempts = [
+            (prompt, json_schema),
+            (fallback_json_prompt(prompt), "json"),
+        ]
+        required_keys = set(json_schema.get("required", ()))
+        if not required_keys:
+            required_keys = {
+                "observed_objects",
+                "spatial_relations",
+                "uncertain",
+                "hazard_detected",
+                "hazard_type",
+                "severity",
+                "reasoning",
+                "recommended_actions",
+                "references",
+                "confidence",
+            }
+
+        last_body: dict | None = None
+        last_content = ""
+        last_thinking = ""
+        last_missing_keys: set[str] = set()
+        for attempt_prompt, fmt in attempts:
+            payload = {
+                "model": model or self.model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": attempt_prompt,
+                        "images": [base64.b64encode(image_bytes).decode()],
+                    }
+                ],
+                "format": fmt,
+                "stream": False,
+                "keep_alive": self.keep_alive,
+                "options": self._options(options),
+            }
+            if self.think is not None:
+                payload["think"] = self.think
+            body = await self._post("/api/chat", payload)
+            last_body = body
+            timing = OllamaTiming.from_response(body)
+            message = body.get("message") or {}
+            content = message.get("content", "")
+            last_content = content
+            last_thinking = message.get("thinking", "")
+
+            candidates = [content, last_thinking]
+            for candidate in candidates:
+                if not candidate or not candidate.strip():
+                    continue
+                cleaned = strip_fence(candidate)
+                if cleaned.startswith("<think>"):
+                    cleaned = re.sub(r"^<think>\s*", "", cleaned, flags=re.I)
+                    cleaned = re.sub(r"\s*</think>\s*$", "", cleaned, flags=re.I)
+                try:
+                    parsed = json.loads(cleaned)
+                    if not isinstance(parsed, dict):
+                        continue
+                    missing_keys = required_keys.difference(parsed)
+                    if missing_keys:
+                        last_missing_keys = missing_keys
+                        continue
+                    return parsed, timing
+                except json.JSONDecodeError:
+                    continue
+
+        if last_body is not None:
+            raw_head = repr(last_content[:200].replace("\n", " "))
+            thinking_head = repr(last_thinking[:200].replace("\n", " "))
+            if last_missing_keys:
+                missing = ", ".join(sorted(last_missing_keys))
+                raise OllamaBadJSON(f"incomplete JSON / missing_keys={missing}")
+            if last_content.strip():
+                raise OllamaBadJSON(f"invalid JSON / raw_head={raw_head}")
+            if last_thinking.strip():
+                raise OllamaBadJSON(
+                    f"empty content / thinking_head={thinking_head}"
+                )
+            raise OllamaBadJSON(f"empty response / raw_head={raw_head}")
+        raise OllamaBadJSON("empty response")
 
     async def warmup(self, model: str | None = None) -> float:
         """모델을 미리 로드하고, 로드에 걸린 시간을 ms로 돌려준다."""

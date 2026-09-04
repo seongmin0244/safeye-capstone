@@ -31,7 +31,7 @@ class LocalBackend:
     name = "local"
 
     def __init__(self, base_url: str | None = None, model: str | None = None):
-        self.base_url = (base_url or settings.local_base_url).rstrip("/")
+        self.base_url = (base_url or settings.ollama_base_url).rstrip("/")
         self.model = model or settings.local_model
         self.client = OllamaClient(
             base_url=self.base_url,
@@ -65,6 +65,9 @@ class LocalProxyBackend(LocalBackend):
     """게이트웨이가 로컬 FastAPI 노드의 `/v1/analyze_internal`을 호출하는 백엔드."""
 
     name = "local"
+
+    def __init__(self, base_url: str | None = None, model: str | None = None):
+        super().__init__(base_url or settings.local_base_url, model)
 
     def _headers(self) -> dict:
         return {"X-Local-Key": _LOCAL_KEY} if _LOCAL_KEY else {}

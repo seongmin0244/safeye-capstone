@@ -169,17 +169,20 @@ async def analyze_internal(
 
 async def _infer(img: bytes, prompt: str):
     """스키마가 깨질 때만 정해진 횟수만큼 다시 시도한다."""
-    last = None
-    for attempt in range(cfg.json_retry + 1):
+    retries = max(0, cfg.json_retry)
+    last: Exception | None = None
+    for attempt in range(retries + 1):
         try:
             obj, timing = await rt.client.chat_json(img, prompt, INTERNAL_JSON_SCHEMA)
             return VLMInternal.model_validate(obj), timing
         except (OllamaBadJSON, ValidationError) as e:
             last = e
-            if attempt < cfg.json_retry:
+            if attempt < retries:
                 rt.n_json_retry += 1
-                log.warning("schema retry %d/%d: %s", attempt + 1, cfg.json_retry, e)
-    raise last
+                log.warning("schema retry %d/%d: %s", attempt + 1, retries, e)
+    if last:
+        raise last
+    raise OllamaBadJSON("inference failed without an exception")
 
 
 @app.get("/health")

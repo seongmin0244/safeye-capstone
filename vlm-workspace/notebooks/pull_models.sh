@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 후보 모델을 한 번에 받아서 벤치마크를 돌리기 위한 스크립트
+# 후보 모델을 한 번에 받아두는 작은 도우미.
 #
-#   bash scripts/pull_models.sh
-#   MODELS="qwen3-vl:8b-q4_K_M qwen3-vl:4b" bash scripts/pull_models.sh
+#   bash notebooks/pull_models.sh
+#   MODELS="qwen3-vl:8b-q4_K_M qwen3-vl:4b" bash notebooks/pull_models.sh
 
 set -u
 
@@ -24,4 +24,4 @@ ollama ps
 
 echo
 echo "Next: copy the working model list into LN_BENCH_MODELS, then run:"
-echo "      python scripts/bench_latency.py --images ./samples --n 5"
+echo "      python notebooks/bench_latency.py --images ./samples --n 5"
